@@ -54,6 +54,7 @@ async function listDatasets() {
   async function walk(dir) {
     const entries = await fs.promises.readdir(dir, { withFileTypes: true });
     for (const ent of entries) {
+      if (ent.name === "__MACOSX" || ent.name.startsWith(".")) continue;
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) {
         await walk(full);
@@ -105,23 +106,32 @@ async function countCsv(dir) {
 
 async function firstDatasetFolder() {
   const base = datasetsBase();
+  const candidates = [];
   async function find(dir) {
     const entries = await fs.promises.readdir(dir, { withFileTypes: true });
     for (const ent of entries) {
+      if (ent.name === "__MACOSX" || ent.name.startsWith(".")) continue;
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) {
         const csvCount = await countCsv(full);
         if (csvCount > 0) {
-          return path.relative(base, full).split(path.sep).join("/");
+          const rel = path.relative(base, full).split(path.sep).join("/");
+          candidates.push(rel);
         }
-        const child = await find(full);
-        if (child) return child;
+        await find(full);
       }
     }
-    return null;
   }
   try {
-    return await find(base);
+    await find(base);
+    if (!candidates.length) return null;
+    // Prefer Sebring and Race 1 if available
+    const sebringRace1 = candidates.find((p) => /sebring/i.test(p) && /race[\s_-]?1/i.test(p));
+    if (sebringRace1) return sebringRace1;
+    const sebringAny = candidates.find((p) => /sebring/i.test(p));
+    if (sebringAny) return sebringAny;
+    // Otherwise return the first discovered
+    return candidates[0];
   } catch {
     return null;
   }
@@ -130,26 +140,35 @@ async function firstDatasetFolder() {
 async function findCandidateCsv(folderRel) {
   const base = datasetsBase();
   const folder = path.join(base, folderRel);
-  let candidate = null;
+  let best = null;
+  let bestScore = -1;
+  function score(name) {
+    const n = name.toLowerCase();
+    if (/(^|[_-])lap[_-]?time/.test(n) || /laptime/.test(n)) return 100;
+    if (/lap[_-]?start/.test(n) || /lap[_-]?end/.test(n)) return 80;
+    if (/analysisendurance/.test(n)) return 60;
+    return 10;
+  }
   async function walk(dir) {
     const entries = await fs.promises.readdir(dir, { withFileTypes: true });
     for (const ent of entries) {
+      if (ent.name === "__MACOSX" || ent.name.startsWith(".")) continue;
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) {
         await walk(full);
       } else if (ent.isFile() && ent.name.toLowerCase().endsWith(".csv")) {
-        if (ent.name.toLowerCase().startsWith("lap_times")) {
-          candidate = full;
-          return;
+        const s = score(ent.name);
+        if (s > bestScore) {
+          bestScore = s;
+          best = full;
         }
-        if (!candidate) candidate = full;
       }
     }
   }
   try {
     await walk(folder);
   } catch {}
-  return candidate;
+  return best;
 }
 
 function toFloat(val) {

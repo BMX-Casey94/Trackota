@@ -2,7 +2,7 @@
 // @mui material components
 import Grid from "@mui/material/Grid";
 import Icon from "@mui/material/Icon";
-import { Card, LinearProgress, Stack } from "@mui/material";
+import { Card, LinearProgress, Stack, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
 import { useEffect, useState } from "react";
 
 // Dashboard React components
@@ -48,6 +48,53 @@ function Dashboard() {
   const [telemetry, setTelemetry] = useState(null);
   const [sectionsData, setSectionsData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [datasetOptions, setDatasetOptions] = useState([]);
+  const [selectedFolder, setSelectedFolder] = useState(() => {
+    try {
+      return localStorage.getItem("trackota:selectedFolder") || null;
+    } catch {
+      return null;
+    }
+  });
+  const [datasetsLoading, setDatasetsLoading] = useState(true);
+
+  // Load dataset options from serverless API and choose sensible defaults (prefer Sebring Race 1/2)
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setDatasetsLoading(true);
+        const ds = await StrategyApi.listDatasets();
+        const dirs = (ds?.files || []).filter((f) => f.kind === "directory" && (f.csvCount || 0) > 0);
+        // Prefer Sebring Race 1 and Race 2 if available
+        const sebringDirs = dirs.filter((d) => /sebring/i.test(d.relativePath));
+        const race1 = sebringDirs.find((d) => /race[\s_-]?1/i.test(d.relativePath));
+        const race2 = sebringDirs.find((d) => /race[\s_-]?2/i.test(d.relativePath));
+        let options = [];
+        if (race1) options.push({ label: "Sebring - Race 1", value: race1.relativePath });
+        if (race2) options.push({ label: "Sebring - Race 2", value: race2.relativePath });
+        if (!options.length) {
+          // Fallback: list top-level directories discovered
+          options = dirs.map((d) => ({ label: d.relativePath, value: d.relativePath }));
+        }
+        if (active) {
+          setDatasetOptions(options);
+          // Choose initial selection: localStorage -> env default -> first option
+          const envDefault = process.env.REACT_APP_DATASET_FOLDER || null;
+          const initial = (selectedFolder && options.find((o) => o.value === selectedFolder)?.value)
+            || (envDefault && options.find((o) => o.value === envDefault)?.value)
+            || (options[0]?.value || null);
+          setSelectedFolder(initial);
+        }
+      } catch (e) {
+        console.error("Failed to load dataset list:", e);
+      } finally {
+        if (active) setDatasetsLoading(false);
+      }
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -55,10 +102,10 @@ function Dashboard() {
       try {
         setLoading(true);
         const [s, deg, tel, sec] = await Promise.all([
-          api.getSummary(),
-          api.getTyreDegChart(),
-          api.getTelemetry(),
-          api.getSections(),
+          api.getSummary(selectedFolder ? { folder: selectedFolder } : {}),
+          api.getTyreDegChart(selectedFolder ? { folder: selectedFolder } : {}),
+          api.getTelemetry(selectedFolder ? { folder: selectedFolder } : {}),
+          api.getSections(selectedFolder ? { folder: selectedFolder } : {}),
         ]);
         if (!isMounted) return;
         setSummary(s);
@@ -90,7 +137,7 @@ function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [selectedFolder]); // re-fetch when dataset changes
 
   const currentLap = summary?.currentLap;
   const totalLaps = summary?.totalLaps;
@@ -164,6 +211,34 @@ function Dashboard() {
   return (
     <DashboardLayout>
       <DashboardNavbar />
+      <VuiBox px={3} mt={2} mb={1} display="flex" justifyContent="flex-end" alignItems="center">
+        {!!datasetOptions.length && (
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel id="dataset-select-label" sx={{ color: "#c8cfca" }}>Dataset</InputLabel>
+            <Select
+              labelId="dataset-select-label"
+              id="dataset-select"
+              value={selectedFolder || ""}
+              label="Dataset"
+              onChange={(e) => {
+                const value = e.target.value || null;
+                setSelectedFolder(value);
+                try { localStorage.setItem("trackota:selectedFolder", value || ""); } catch {}
+              }}
+              sx={{
+                color: "white",
+                ".MuiOutlinedInput-notchedOutline": { borderColor: "#56577A" },
+                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#8F91B5" },
+                ".MuiSvgIcon-root": { color: "#c8cfca" },
+              }}
+            >
+              {datasetOptions.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
+      </VuiBox>
       <VuiBox py={3}>
         <VuiBox mb={3}>
           <Grid container spacing={3}>

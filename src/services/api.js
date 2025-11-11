@@ -7,10 +7,26 @@ const API_BASE =
     ? defaultBase
     : (rawBase || defaultBase);
 
+const DEFAULT_FOLDER = process.env.REACT_APP_DATASET_FOLDER || null;
+
+function appendFolder(path, params = {}) {
+  if (!DEFAULT_FOLDER) return path;
+  // Add folder to query string if not present
+  const hasQuery = path.includes("?");
+  const url = new URL(path, "http://dummy.local");
+  if (!url.searchParams.has("folder")) {
+    url.searchParams.set("folder", DEFAULT_FOLDER);
+  }
+  const qs = url.searchParams.toString();
+  return hasQuery ? `${url.pathname}?${qs}` : `${url.pathname}?${qs}`;
+}
+
 async function fetchJson(path, options = {}) {
   // Normalise URL: join base and path with a single slash
   const base = API_BASE.endsWith("/") ? API_BASE.slice(0, -1) : API_BASE;
-  const suffix = path.startsWith("/") ? path.slice(1) : path;
+  const suffix = (appendFolder(path) || path).startsWith("/")
+    ? appendFolder(path).slice(1)
+    : appendFolder(path);
   const url = `${base}/${suffix}`;
   const res = await fetch(url, {
     headers: { "Content-Type": "application/json" },
@@ -22,13 +38,15 @@ async function fetchJson(path, options = {}) {
 
 export const StrategyApi = {
   getSummary: (params = {}) => {
-    const q = new URLSearchParams(params).toString();
+    const all = { ...params };
+    const q = new URLSearchParams(all).toString();
     return fetchJson(`/strategy/summary${q ? `?${q}` : ""}`);
   },
   getRecommendations: () => fetchJson("/strategy/recommendations"),
   getTopThree: () => fetchJson("/race/top3"),
   getTyreDegChart: (params = {}) => {
-    const q = new URLSearchParams(params).toString();
+    const all = { ...params };
+    const q = new URLSearchParams(all).toString();
     return fetchJson(`/charts/tyre-degradation${q ? `?${q}` : ""}`);
   },
   listDatasets: () => fetchJson("/datasets"),
