@@ -377,7 +377,7 @@ function Dashboard() {
                 try { localStorage.setItem(`trackota:selectedCar:${selectedFolder}`, value || ""); } catch {}
               }}
               sx={{
-                color: "#ffffff",
+                color: "#ffffff !important",
                 background: "linear-gradient(126.97deg, rgba(6, 11, 40, 0.94) 28.26%, rgba(10, 14, 35, 0.8) 91.2%)",
                 backdropFilter: "blur(20px)",
                 border: "1px solid rgba(255, 255, 255, 0.125)",
@@ -389,6 +389,7 @@ function Dashboard() {
                   display: "flex",
                   alignItems: "center",
                   minHeight: "unset",
+                  color: "#ffffff !important",
                 },
                 "&:hover": {
                   background: "linear-gradient(126.97deg, rgba(6, 11, 40, 0.98) 28.26%, rgba(10, 14, 35, 0.9) 91.2%)",
@@ -396,7 +397,7 @@ function Dashboard() {
                 },
                 "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
                 "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "none" },
-                ".MuiSvgIcon-root, .MuiSelect-icon": { color: "#ffffff", pointerEvents: "none" },
+                ".MuiSvgIcon-root, .MuiSelect-icon": { color: "#ffffff !important", pointerEvents: "none" },
               }}
               MenuProps={{
                 PaperProps: {
@@ -406,10 +407,38 @@ function Dashboard() {
                     border: "1px solid rgba(255, 255, 255, 0.125)",
                     borderRadius: "10px",
                     mt: 1,
+                    maxHeight: "420px",
                     boxShadow: "0 7px 23px rgba(0, 0, 0, 0.31)",
+                    "& .MuiList-root": {
+                      padding: "8px",
+                      maxHeight: "420px",
+                      overflowY: "auto",
+                      "&::-webkit-scrollbar": {
+                        width: "10px",
+                      },
+                      "&::-webkit-scrollbar-track": {
+                        background: "rgba(255, 255, 255, 0.05)",
+                        borderRadius: "10px",
+                        margin: "8px 0",
+                      },
+                      "&::-webkit-scrollbar-thumb": {
+                        background: "linear-gradient(180deg, rgba(44, 217, 255, 0.5) 0%, rgba(44, 217, 255, 0.3) 100%)",
+                        borderRadius: "10px",
+                        border: "2px solid rgba(6, 11, 40, 0.5)",
+                        backgroundClip: "padding-box",
+                        backdropFilter: "blur(10px)",
+                        boxShadow: "inset 0 0 6px rgba(44, 217, 255, 0.3)",
+                      },
+                      "&::-webkit-scrollbar-thumb:hover": {
+                        background: "linear-gradient(180deg, rgba(44, 217, 255, 0.7) 0%, rgba(44, 217, 255, 0.5) 100%)",
+                        boxShadow: "inset 0 0 8px rgba(44, 217, 255, 0.5)",
+                      },
+                    },
                     "& .MuiMenuItem-root": {
-                      color: "#ffffff",
+                      color: "#ffffff !important",
                       py: 1.5,
+                      borderRadius: "8px",
+                      marginBottom: "4px",
                       "&:hover": {
                         background: "rgba(44, 217, 255, 0.08)",
                       },

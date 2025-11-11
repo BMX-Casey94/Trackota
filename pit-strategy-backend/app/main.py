@@ -304,17 +304,26 @@ class SimulationRequest(BaseModel):
 
 
 @app.post("/strategy/simulate")
-async def simulate(req: SimulationRequest):
+async def simulate(req: SimulationRequest, folder: Optional[str] = Query(default=None)):
     # Basic mock: drop lap time by 1.5s after pit, slight compound effect, SC flattens 2 laps
+    # Decide race total based on selected dataset folder (Race 1 => 19, Race 2 => 16). Fallback to 45.
     total = 45
+    if folder:
+        f = folder.lower()
+        if "race" in f:
+            if "race 1" in f or "race_1" in f or "race-1" in f:
+                total = 19
+            elif "race 2" in f or "race_2" in f or "race-2" in f:
+                total = 16
     base = [93.0 + (i * 0.25) for i in range(total)]
     times = base[:]
     gain = {"Soft": -1.8, "Medium": -1.2, "Hard": -0.6}.get(req.compound, -1.0)
-    if 1 <= req.pitLap <= total:
-        for i in range(req.pitLap - 1, total):
+    pit = max(1, min(req.pitLap, total))
+    if 1 <= pit <= total:
+        for i in range(pit - 1, total):
             times[i] = max(80.0, times[i] + gain)
-    if req.safetyCar and req.pitLap + 1 < total:
-        times[req.pitLap : min(total, req.pitLap + 2)] = [times[req.pitLap] + 10.0, times[req.pitLap] + 10.5]
+    if req.safetyCar and pit + 1 < total:
+        times[pit : min(total, pit + 2)] = [times[pit] + 10.0, times[pit] + 10.5][: max(0, min(2, total - pit))]
     return {"laps": list(range(1, total + 1)), "times": times}
 
 

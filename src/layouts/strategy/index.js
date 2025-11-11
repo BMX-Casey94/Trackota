@@ -88,6 +88,7 @@ function Strategy() {
   const lapsText = summary ? `${summary.currentLap}/${summary.totalLaps}` : "—/—";
   const sessionWeatherText = summary ? `Live Race — Session: ${summary.session} — Weather: ${summary.weather}` : "Live Race";
   const lapsCount = Array.isArray(tyreDeg?.laps) ? tyreDeg.laps.length : 0;
+  const maxLaps = summary?.totalLaps || (Array.isArray(tyreDeg?.laps) ? tyreDeg.laps.length : 0) || 45;
   const recommendationsList = Array.isArray(recommendations) ? recommendations : [];
   const topThreeList = Array.isArray(topThree) && topThree.length ? topThree : [
     { pos: 1, name: "—", gap: "—" },
@@ -113,6 +114,13 @@ function Strategy() {
       } catch {}
     })();
   }, [showSections, selectedFolder, selectedCar]);
+
+  // Clamp simulator pit lap to race length whenever summary updates
+  useEffect(() => {
+    if (summary?.totalLaps) {
+      setSim((s) => ({ ...s, pitLap: Math.min(Math.max(1, s.pitLap), summary.totalLaps) }));
+    }
+  }, [summary?.totalLaps]);
 
   return (
     <DashboardLayout>
@@ -232,9 +240,13 @@ function Strategy() {
                       <TextField
                         type="number"
                         size="small"
-                        inputProps={{ min: 1 }}
+                        inputProps={{ min: 1, max: maxLaps }}
                         value={sim.pitLap}
-                        onChange={(e) => setSim((s) => ({ ...s, pitLap: Number(e.target.value) }))}
+                        onChange={(e) => {
+                          const raw = Number(e.target.value);
+                          const clamped = isNaN(raw) ? 1 : Math.min(Math.max(1, raw), maxLaps);
+                          setSim((s) => ({ ...s, pitLap: clamped }));
+                        }}
                         sx={{
                           width: 110,
                           "& .MuiOutlinedInput-root": {
@@ -291,7 +303,12 @@ function Strategy() {
                             >
                               <VuiBox
                                 component="button"
-                                onClick={() => setSim((s) => ({ ...s, pitLap: s.pitLap + 1 }))}
+                                onClick={() =>
+                                  setSim((s) => ({
+                                    ...s,
+                                    pitLap: Math.min(maxLaps, s.pitLap + 1),
+                                  }))
+                                }
                                 sx={{
                                   background:
                                     "linear-gradient(126.97deg, rgba(44, 217, 255, 0.15) 0%, rgba(44, 217, 255, 0.08) 100%)",
@@ -375,9 +392,13 @@ function Strategy() {
                             "& .MuiSelect-select": {
                               display: "flex",
                               alignItems: "center",
+                              justifyContent: "center",
+                              width: "100%",
                               minHeight: "unset",
                               color: "#ffffff",
-                              paddingLeft: "12px !important",
+                              textAlign: "center",
+                              paddingLeft: "0 !important",
+                              paddingRight: "32px !important",
                               cursor: "pointer",
                             },
                             "& .MuiOutlinedInput-root": {
