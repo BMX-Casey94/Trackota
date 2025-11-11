@@ -1,6 +1,7 @@
 // Service layer for backend endpoints; default to same-origin /api (Vercel functions)
-const rawBase = process.env.REACT_APP_API_BASE;
+// CRITICAL: Webpack inlines process.env.REACT_APP_API_BASE at build time, so we must check runtime value
 const defaultBase = "/api";
+
 function isLocalBase(v) {
   if (!v) return false;
   let s = String(v).trim();
@@ -19,11 +20,37 @@ function isLocalBase(v) {
     return false;
   }
 }
-// Avoid calling any localhost-style base in production builds, even if misconfigured
-const API_BASE =
-  (process.env.NODE_ENV === "production" && isLocalBase(rawBase))
-    ? defaultBase
-    : (rawBase || defaultBase);
+
+// Get API base: ALWAYS use /api in production, never localhost
+// This function runs at module load, but checks runtime window.location for safety
+function getApiBase() {
+  // Detect production: either NODE_ENV=production OR we're on a real domain (not localhost)
+  const isProd = process.env.NODE_ENV === "production" || 
+    (typeof window !== "undefined" && window.location && 
+     !window.location.hostname.match(/^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/));
+  
+  // Get the base URL (webpack may have inlined this at build time)
+  const rawBase = process.env.REACT_APP_API_BASE;
+  
+  // In production: ALWAYS reject localhost, use /api instead
+  if (isProd) {
+    if (isLocalBase(rawBase)) {
+      console.warn("[Trackota] Rejecting localhost API base in production, using /api");
+      return defaultBase;
+    }
+    // If no base provided in production, use default
+    if (!rawBase) {
+      return defaultBase;
+    }
+    // If a valid non-localhost base is provided, use it
+    return rawBase;
+  }
+  
+  // Development: allow localhost if explicitly set
+  return rawBase || defaultBase;
+}
+
+const API_BASE = getApiBase();
 
 const DEFAULT_FOLDER = process.env.REACT_APP_DATASET_FOLDER || null;
 
