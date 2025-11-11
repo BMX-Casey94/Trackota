@@ -67,6 +67,22 @@ function Dashboard() {
         setSectionsData(sec || null);
       } catch (e) {
         console.error("Dashboard data fetch error:", e);
+        // Fallback to mock data if real API fails and mocks are not already enabled
+        if (!useMocks) {
+          try {
+            const [s, deg] = await Promise.all([
+              MockStrategyApi.getSummary(),
+              MockStrategyApi.getTyreDegChart(),
+            ]);
+            if (!isMounted) return;
+            setSummary(s);
+            setTyreDeg(deg);
+            setTelemetry(null);
+            setSectionsData(null);
+          } catch (mockErr) {
+            console.error("Failed to load mock dashboard data:", mockErr);
+          }
+        }
       } finally {
         if (isMounted) setLoading(false);
       }

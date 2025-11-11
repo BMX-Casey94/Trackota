@@ -1,8 +1,18 @@
-// Service layer for backend endpoints; defaults to same-origin /api in production
-const API_BASE = process.env.REACT_APP_API_BASE || "";
+// Service layer for backend endpoints; default to same-origin /api (Vercel functions)
+const rawBase = process.env.REACT_APP_API_BASE;
+const defaultBase = "/api";
+// Avoid calling localhost in production builds even if misconfigured
+const API_BASE =
+  (process.env.NODE_ENV === "production" && rawBase && /^https?:\/\/localhost/i.test(rawBase))
+    ? defaultBase
+    : (rawBase || defaultBase);
 
 async function fetchJson(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  // Normalise URL: join base and path with a single slash
+  const base = API_BASE.endsWith("/") ? API_BASE.slice(0, -1) : API_BASE;
+  const suffix = path.startsWith("/") ? path.slice(1) : path;
+  const url = `${base}/${suffix}`;
+  const res = await fetch(url, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
