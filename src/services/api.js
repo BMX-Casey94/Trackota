@@ -98,6 +98,10 @@ export const StrategyApi = {
     const q = new URLSearchParams(all).toString();
     return fetchJson(`/charts/tyre-degradation${q ? `?${q}` : ""}`);
   },
+  getWeatherTrend: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return fetchJson(`/weather/trend${q ? `?${q}` : ""}`);
+  },
   listDatasets: () => fetchJson("/datasets"),
   simulate: ({ pitLap, compound, safetyCar }) =>
     fetchJson("/strategy/simulate", {

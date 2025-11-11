@@ -60,6 +60,8 @@ function Dashboard() {
   const [selectedLap, setSelectedLap] = useState(null);
   const [carOptions, setCarOptions] = useState([]);
   const [selectedCar, setSelectedCar] = useState(null);
+  const [weatherTrend, setWeatherTrend] = useState(null);
+  const [top3, setTop3] = useState([]);
 
   // Load dataset options from serverless API and choose sensible defaults (prefer Sebring Race 1/2)
   useEffect(() => {
@@ -137,17 +139,21 @@ function Dashboard() {
     (async () => {
       try {
         setLoading(true);
-        const [s, deg, tel, sec] = await Promise.all([
+        const [s, deg, tel, sec, wtr, t3] = await Promise.all([
           api.getSummary(selectedFolder ? { folder: selectedFolder, ...(selectedCar ? { car: selectedCar } : {}) } : {}),
-          api.getTyreDegChart(selectedFolder ? { folder: selectedFolder } : {}),
-          api.getTelemetry(selectedFolder ? { folder: selectedFolder } : {}),
-          api.getSections(selectedFolder ? { folder: selectedFolder } : {}),
+          api.getTyreDegChart(selectedFolder ? { folder: selectedFolder, ...(selectedCar ? { car: selectedCar } : {}) } : {}),
+          api.getTelemetry(selectedFolder ? { folder: selectedFolder, ...(selectedCar ? { car: selectedCar } : {}) } : {}),
+          api.getSections(selectedFolder ? { folder: selectedFolder, ...(selectedCar ? { car: selectedCar } : {}) } : {}),
+          api.getWeatherTrend(selectedFolder ? { folder: selectedFolder } : {}),
+          api.getTopThree(selectedFolder ? { folder: selectedFolder } : {}),
         ]);
         if (!isMounted) return;
         setSummary(s);
         setTyreDeg(deg);
         setTelemetry(tel?.series || null);
         setSectionsData(sec || null);
+        setWeatherTrend(wtr || null);
+        setTop3(Array.isArray(t3) ? t3 : []);
         // Initialise selected lap to the last available lap
         const total = Array.isArray(deg?.times) ? deg.times.length : (s?.totalLaps || null);
         if (total && isMounted) setSelectedLap(total);
@@ -223,6 +229,13 @@ function Dashboard() {
         return parseFloat((slice.reduce((a, b) => a + (b || 0), 0) / slice.length).toFixed(3));
       })
     : [];
+  // Friendlier labels for section names like "S1.a" -> "Section 1a"
+  const prettySectionName = (name) => {
+    const m = /^S(\d+)\.([a-z])$/i.exec(String(name || ""));
+    if (m) return `Section ${m[1]}${m[2].toLowerCase()}`;
+    return name || "";
+  };
+  const sectionDisplayNames = sectionNames.map(prettySectionName);
   const sectionDelta = sections
     ? sectionNames.map((name) => {
         const arr = (sections[name] || []).filter((v) => typeof v === "number");
@@ -239,6 +252,21 @@ function Dashboard() {
     const lapNum = timesUpTo.length - arr.length + i + 1;
     return { lap: lapNum, time: t };
   });
+  const theoreticalBest = (() => {
+    const sections = sectionsData?.timesBySection || null;
+    if (!sections) return null;
+    let sum = 0;
+    for (const name of Object.keys(sections)) {
+      const arr = (sections[name] || []).filter((v) => typeof v === "number");
+      if (!arr.length) return null;
+      const min = Math.min(...arr);
+      sum += min;
+    }
+    return Number(sum.toFixed(3));
+  })();
+  const theoreticalDelta = (bestLap != null && theoreticalBest != null)
+    ? Number((theoreticalBest - bestLap).toFixed(3))
+    : null;
 
   if (loading) {
     return (
@@ -291,7 +319,7 @@ function Dashboard() {
             }
             return (
           <FormControl size="small" sx={{ minWidth: 240 }}>
-            <InputLabel id="dataset-select-label" sx={{ color: "#c8cfca" }}>Dataset</InputLabel>
+            <InputLabel id="dataset-select-label" sx={{ color: "#c8cfca" }} shrink>Dataset</InputLabel>
             <Select
               labelId="dataset-select-label"
               id="dataset-select"
@@ -304,9 +332,12 @@ function Dashboard() {
               }}
               sx={{
                 color: "white",
+                background: "#1B1C3A",
+                borderRadius: "10px",
                 ".MuiOutlinedInput-notchedOutline": { borderColor: "#56577A" },
                 "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#8F91B5" },
-                ".MuiSvgIcon-root": { color: "#c8cfca" },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#2CD9FF" },
+                ".MuiSvgIcon-root, .MuiSelect-icon": { color: "#c8cfca" },
               }}
             >
               {datasetOptions.map((opt) => (
@@ -336,7 +367,7 @@ function Dashboard() {
         ) : null}
         {!!carOptions.length && (
           <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel id="car-select-label" sx={{ color: "#c8cfca" }}>Car</InputLabel>
+            <InputLabel id="car-select-label" sx={{ color: "#c8cfca" }} shrink>Car</InputLabel>
             <Select
               labelId="car-select-label"
               id="car-select"
@@ -349,9 +380,12 @@ function Dashboard() {
               }}
               sx={{
                 color: "white",
+                background: "#1B1C3A",
+                borderRadius: "10px",
                 ".MuiOutlinedInput-notchedOutline": { borderColor: "#56577A" },
                 "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#8F91B5" },
-                ".MuiSvgIcon-root": { color: "#c8cfca" },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#2CD9FF" },
+                ".MuiSvgIcon-root, .MuiSelect-icon": { color: "#c8cfca" },
               }}
             >
               {carOptions.map((opt) => (
@@ -553,7 +587,7 @@ function Dashboard() {
                       <VuiTypography color="white" variant="lg" fontWeight="bold" mb="8px">
                         {tyreWearPct != null ? `${tyreWearPct}%` : "—"}
                       </VuiTypography>
-                      <VuiProgress value={60} color="info" sx={{ background: "#2D2E5F" }} />
+                      <VuiProgress value={tyreWearPct ?? 0} color="info" sx={{ background: "#2D2E5F" }} />
                     </Grid>
                   </Grid>
                 </VuiBox>
@@ -612,25 +646,30 @@ function Dashboard() {
             <Card>
               <VuiBox p={3}>
                 <VuiTypography variant="lg" color="white" fontWeight="bold" mb="10px">
-                  Telemetry Snapshot
+                  Weather Trend
                 </VuiTypography>
-                <VuiBox display="grid" gridTemplateColumns="1fr 1fr" gap={12}>
-                  <VuiBox>
-                    <VuiTypography variant="button" color="text">Speed</VuiTypography>
-                    <VuiTypography variant="lg" color="white" fontWeight="bold">{telemetry?.speed?.slice(-1)[0] != null ? `${telemetry.speed.slice(-1)[0]} mph` : "—"}</VuiTypography>
-                  </VuiBox>
-                  <VuiBox>
-                    <VuiTypography variant="button" color="text">Gear</VuiTypography>
-                    <VuiTypography variant="lg" color="white" fontWeight="bold">{telemetry?.gear?.slice(-1)[0] ?? "—"}</VuiTypography>
-                  </VuiBox>
-                  <VuiBox>
-                    <VuiTypography variant="button" color="text">Throttle</VuiTypography>
-                    <VuiTypography variant="lg" color="white" fontWeight="bold">{telemetry?.throttle?.slice(-1)[0] != null ? `${telemetry.throttle.slice(-1)[0]}%` : "—"}</VuiTypography>
-                  </VuiBox>
-                  <VuiBox>
-                    <VuiTypography variant="button" color="text">Brake F/R</VuiTypography>
-                    <VuiTypography variant="lg" color="white" fontWeight="bold">{telemetry?.brake_f?.slice(-1)[0] ?? "—"} / {telemetry?.brake_r?.slice(-1)[0] ?? "—"}</VuiTypography>
-                  </VuiBox>
+                <VuiBox sx={{ width: "100%", height: "200px" }}>
+                  <LineChart
+                    lineChartData={[
+                      { name: "Air Temp (°C)", data: (weatherTrend?.air || []).map((y, i) => ({ x: weatherTrend?.labels?.[i], y })) },
+                      { name: "Track Temp (°C)", data: (weatherTrend?.track || []).map((y, i) => ({ x: weatherTrend?.labels?.[i], y })) },
+                    ]}
+                    lineChartOptions={{
+                      chart: { toolbar: { show: false } },
+                      dataLabels: { enabled: false },
+                      stroke: { curve: "smooth" },
+                      xaxis: {
+                        type: "category",
+                        categories: weatherTrend?.labels || [],
+                        labels: { style: { colors: "#c8cfca", fontSize: "10px" } },
+                      },
+                      yaxis: {
+                        labels: { style: { colors: "#c8cfca", fontSize: "10px" } },
+                      },
+                      grid: { strokeDashArray: 5, borderColor: "#56577A" },
+                      tooltip: { theme: "dark" },
+                    }}
+                  />
                 </VuiBox>
               </VuiBox>
             </Card>
@@ -655,7 +694,7 @@ function Dashboard() {
                         theme: "dark",
                       },
                       xaxis: {
-                        categories: sectionNames,
+                        categories: sectionDisplayNames,
                         labels: { style: { colors: "#fff", fontSize: "10px" } },
                       },
                       yaxis: {
@@ -685,13 +724,14 @@ function Dashboard() {
                     return (
                       <Grid key={s.name} item xs={6} md={4} lg={2}>
                         <VuiBox p={2} sx={{ background: "#1B1C3A", borderRadius: "12px" }}>
-                          <VuiTypography color="text" variant="button" fontWeight="medium" mb="4px">
-                            {s.name}
+                          <VuiTypography color="text" variant="button" fontWeight="medium" component="div" sx={{ mb: "4px" }}>
+                            {prettySectionName(s.name)}
                           </VuiTypography>
-                          <VuiTypography color="white" variant="lg" fontWeight="bold">
-                            {sign}{s.delta.toFixed(3)}s
+                          <VuiTypography color="white" variant="lg" fontWeight="bold" component="div" sx={{ mb: "2px" }}>
+                            {sign}
+                            {s.delta.toFixed(3)}s
                           </VuiTypography>
-                          <VuiTypography color={colour} variant="caption" fontWeight="regular">
+                          <VuiTypography color={colour} variant="caption" fontWeight="regular" component="div">
                             {positive ? "Slower" : "Faster"}
                           </VuiTypography>
                         </VuiBox>
@@ -713,17 +753,77 @@ function Dashboard() {
                 <VuiTypography variant="lg" color="white" fontWeight="bold" mb="10px">
                   Recent Lap Times
                 </VuiTypography>
-                <Grid container spacing={2}>
+                <VuiBox
+                  sx={{
+                    display: "grid",
+                    gap: "16px",
+                    gridTemplateColumns: {
+                      xs: "repeat(2, minmax(0, 1fr))",
+                      sm: "repeat(3, minmax(0, 1fr))",
+                      md: "repeat(6, minmax(0, 1fr))",
+                      xl: "repeat(8, minmax(0, 1fr))", // add two extra tiles on wide screens
+                    },
+                  }}
+                >
                   {recentLapPairs.map((p) => (
-                    <Grid key={p.lap} item xs={6} md={2}>
-                      <Card>
-                        <VuiBox p={2} textAlign="center">
-                          <VuiTypography color="text" variant="caption">Lap {p.lap}</VuiTypography>
-                          <VuiTypography color="white" variant="lg" fontWeight="bold">{p.time?.toFixed(1)}s</VuiTypography>
-                        </VuiBox>
-                      </Card>
+                    <Card key={p.lap}>
+                      <VuiBox
+                        p={2}
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        flexDirection="column"
+                        textAlign="center"
+                        sx={{ minHeight: "72px" }}
+                      >
+                        <VuiTypography color="text" variant="caption" component="div" sx={{ mb: "4px" }}>
+                          Lap {p.lap}
+                        </VuiTypography>
+                        <VuiTypography color="white" variant="lg" fontWeight="bold" component="div">
+                          {p.time?.toFixed(1)}s
+                        </VuiTypography>
+                      </VuiBox>
+                    </Card>
+                  ))}
+                </VuiBox>
+              </VuiBox>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={6} lg={4}>
+            <Card>
+              <VuiBox p={3}>
+                <VuiTypography variant="lg" color="white" fontWeight="bold" mb="10px">
+                  Theoretical Best Lap
+                </VuiTypography>
+                <VuiTypography color="white" variant="h4" fontWeight="bold">
+                  {theoreticalBest != null ? `${theoreticalBest.toFixed(3)}s` : "—"}
+                </VuiTypography>
+                <VuiTypography variant="button" color={theoreticalDelta != null && theoreticalDelta < 0 ? "success" : "text"}>
+                  {theoreticalDelta != null ? `Δ vs Best Actual: ${theoreticalDelta >= 0 ? "+" : ""}${theoreticalDelta.toFixed(3)}s` : ""}
+                </VuiTypography>
+              </VuiBox>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={6} lg={8}>
+            <Card>
+              <VuiBox p={3}>
+                <VuiTypography variant="lg" color="white" fontWeight="bold" mb="10px">
+                  Top‑3 Fastest Laps
+                </VuiTypography>
+                <Grid container spacing={2}>
+                  {(top3 || []).map((r, i) => (
+                    <Grid key={`${r.name}-${i}`} item xs={12} md={4}>
+                      <VuiBox p={2} sx={{ background: "#1B1C3A", borderRadius: "12px" }}>
+                        <VuiTypography variant="button" color="text" fontWeight="medium">{r.name}</VuiTypography>
+                        <VuiTypography variant="lg" color="white" fontWeight="bold">{r.gap}</VuiTypography>
+                      </VuiBox>
                     </Grid>
                   ))}
+                  {(!top3 || !top3.length) && (
+                    <Grid item xs={12}>
+                      <VuiTypography variant="button" color="text">No fastest laps available.</VuiTypography>
+                    </Grid>
+                  )}
                 </Grid>
               </VuiBox>
             </Card>
