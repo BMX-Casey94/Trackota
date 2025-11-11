@@ -182,25 +182,57 @@ function toFloat(val) {
 async function extractLapTimes(filePath) {
   try {
     const { headers, rows } = await readCsvDicts(filePath);
-    const lapTimeKeys = ["lap_time", "laptime", "lapTime", "LapTime", "lap_time_seconds", "laptime_s", "laptime_ms"];
+    // Known lap time column names from various sources
+    const lapTimeKeys = ["lap_time", "laptime", "lapTime", "LapTime", "lap_time_seconds", "laptime_s", "laptime_ms", "value", "Value"];
     const lapKeys = ["lap", "Lap", "lap_number", "LapNumber"];
     const tsKeys = ["timestamp", "Timestamp", "time", "meta_time"];
+    const vehKeys = ["vehicle_id", "VehicleId", "vehicleid", "Vehicle", "car", "Car"];
     const ltKey = lapTimeKeys.find((k) => headers.includes(k)) || null;
     const lapKey = lapKeys.find((k) => headers.includes(k)) || null;
     const tsKey = tsKeys.find((k) => headers.includes(k)) || null;
+    const vehKey = vehKeys.find((k) => headers.includes(k)) || null;
+
+    // If we have an explicit lap time column (including "value"), build times by lap
     if (ltKey) {
+      // If multiple vehicles exist, pick the vehicle with the most valid records
+      let chosenVehicle = null;
+      if (vehKey) {
+        const countByVeh = new Map();
+        for (const row of rows) {
+          const veh = row[vehKey];
+          const raw = toFloat(row[ltKey]);
+          if (veh == null || raw == null) continue;
+          if (!countByVeh.has(veh)) countByVeh.set(veh, 0);
+          // Prefer sensible lap times: > 1s (or > 100 ms before conversion), non-zero
+          if (raw > 0) countByVeh.set(veh, countByVeh.get(veh) + 1);
+        }
+        if (countByVeh.size) {
+          chosenVehicle = Array.from(countByVeh.entries()).sort((a, b) => b[1] - a[1])[0][0];
+        }
+      }
+
       const map = new Map();
       for (const row of rows) {
+        if (vehKey && chosenVehicle && row[vehKey] !== chosenVehicle) continue;
         const lapNum = lapKey ? toFloat(row[lapKey]) : null;
         let t = toFloat(row[ltKey]);
         if (t === null) continue;
-        if (ltKey.endsWith("_ms")) t = t / 1000.0;
+        // Convert millis to seconds if needed or if values look like milliseconds
+        if (ltKey.endsWith("_ms") || t > 1000) t = t / 1000.0;
+        if (t <= 0) continue;
         if (lapNum === null) map.set(map.size + 1, t);
         else if (!map.has(lapNum)) map.set(lapNum, t);
+        else {
+          // On duplicates for the same lap, keep the smaller (more representative) positive time
+          const prev = map.get(lapNum);
+          if (prev === null || (t > 0 && t < prev)) map.set(lapNum, t);
+        }
       }
       const out = Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([, t]) => t);
       if (out.length) return out;
     }
+
+    // Fallback: derive lap times from lap and timestamp columns if available
     if (lapKey && tsKey) {
       let lastLap = null;
       let lastTs = null;
@@ -208,7 +240,15 @@ async function extractLapTimes(filePath) {
       for (const row of rows) {
         const lap = toFloat(row[lapKey]);
         if (lap === null) continue;
+        // Try numeric timestamp first; if not numeric, attempt Date parse
         let ts = toFloat(row[tsKey]);
+        if (ts === null) {
+          const s = row[tsKey];
+          if (typeof s === "string") {
+            const d = Date.parse(s);
+            if (!Number.isNaN(d)) ts = d / 1000.0;
+          }
+        }
         if (ts === null) continue;
         if (lastLap === null) {
           lastLap = lap;
@@ -227,6 +267,52 @@ async function extractLapTimes(filePath) {
     }
   } catch {}
   return [];
+}
+
+// Extract a simple weather summary from a ; separated weather CSV if present
+async function extractWeatherSummary(filePath) {
+  try {
+    const text = await fs.promises.readFile(filePath, "utf8");
+    const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+    if (lines.length < 2) return null;
+    const sep = lines[0].includes(";") ? ";" : ",";
+    const headers = lines[0].split(sep).map((h) => String(h).trim());
+    const idxAir = headers.findIndex((h) => /AIR[_\s-]?TEMP/i.test(h));
+    const idxRain = headers.findIndex((h) => /RAIN/i.test(h));
+    if (idxAir === -1 && idxRain === -1) return null;
+    // Use last row as latest conditions
+    const parts = lines[lines.length - 1].split(sep);
+    const air = idxAir !== -1 ? parseFloat(String(parts[idxAir]).replace(",", ".").trim()) : null;
+    const rain = idxRain !== -1 ? String(parts[idxRain]).trim() : null;
+    const condition = rain && rain !== "0" ? "Rain" : "Dry";
+    if (air != null && !Number.isNaN(air)) return `${Math.round(air)}°C, ${condition}`;
+    return condition;
+  } catch {
+    return null;
+  }
+}
+
+async function findWeatherCsv(folderRel) {
+  const base = datasetsBase();
+  const folder = path.join(base, folderRel);
+  let found = null;
+  async function walk(dir) {
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    for (const ent of entries) {
+      if (ent.name === "__MACOSX" || ent.name.startsWith(".")) continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        await walk(full);
+      } else if (ent.isFile() && /weather/i.test(ent.name) && ent.name.toLowerCase().endsWith(".csv")) {
+        found = full;
+        return;
+      }
+    }
+  }
+  try {
+    await walk(folder);
+  } catch {}
+  return found;
 }
 
 async function extractSections(filePath) {
@@ -343,6 +429,8 @@ module.exports = {
   extractSections,
   telemetryFromCsv,
   computePitWindow,
+  findWeatherCsv,
+  extractWeatherSummary,
 };
 
 

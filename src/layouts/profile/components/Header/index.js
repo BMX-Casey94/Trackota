@@ -110,10 +110,10 @@ function Header() {
               })}
             >
               <VuiTypography variant="lg" color="white" fontWeight="bold">
-                Mark Johnson
+                Akio Toyoda
               </VuiTypography>
               <VuiTypography variant="button" color="text" fontWeight="regular">
-                mark@simmmple.com
+                akio@toyota.co.jp
               </VuiTypography>
             </VuiBox>
           </Grid>

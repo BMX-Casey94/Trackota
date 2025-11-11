@@ -93,6 +93,36 @@ function Overview() {
     <DashboardLayout>
       <Header />
       <VuiBox mt={5} mb={3}>
+        <Card>
+          <VuiBox p={3}>
+            <VuiTypography color="white" variant="lg" fontWeight="bold" mb="6px">
+              Toyota Gazoo Racing Platform — Profile
+            </VuiTypography>
+            <VuiTypography color="text" variant="button" fontWeight="regular" mb="12px">
+              This profile represents the Toyota GR racing persona inside Trackota. It focuses on identity and team context rather than race engineering tools.
+            </VuiTypography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={3}>
+                <VuiTypography color="text" variant="button">Name</VuiTypography>
+                <VuiTypography color="white" variant="lg" fontWeight="bold">Akio Toyoda</VuiTypography>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <VuiTypography color="text" variant="button">Affiliation</VuiTypography>
+                <VuiTypography color="white" variant="lg" fontWeight="bold">TOYOTA GAZOO Racing</VuiTypography>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <VuiTypography color="text" variant="button">Car</VuiTypography>
+                <VuiTypography color="white" variant="lg" fontWeight="bold">GR86</VuiTypography>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <VuiTypography color="text" variant="button">Country</VuiTypography>
+                <VuiTypography color="white" variant="lg" fontWeight="bold">Japan</VuiTypography>
+              </Grid>
+            </Grid>
+          </VuiBox>
+        </Card>
+      </VuiBox>
+      <VuiBox mb={3}>
         <Grid
           container
           spacing={3}

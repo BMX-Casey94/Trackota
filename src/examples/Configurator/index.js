@@ -202,14 +202,14 @@ function Configurator() {
           <VuiBox mb={2}>
             <VuiButton
               component={Link}
-              href="#"
+              href="https://toyotagazooracing.com"
               target="_blank"
               rel="noreferrer"
               color="info"
               variant="contained"
               fullWidth
             >
-              FREE DOWNLOAD
+              MAIN WEBSITE
             </VuiButton>
           </VuiBox>
           <VuiButton
@@ -236,7 +236,7 @@ function Configurator() {
             <VuiBox mr={1.5}>
               <VuiButton
                 component={Link}
-                href="#"
+                href="https://x.com/TGR_WRC"
                 target="_blank"
                 rel="noreferrer"
                 color="dark"
@@ -247,7 +247,7 @@ function Configurator() {
             </VuiBox>
             <VuiButton
               component={Link}
-              href="#"
+              href="https://www.facebook.com/TOYOTAGAZOORacingGlobal"
               target="_blank"
               rel="noreferrer"
               color="dark"
