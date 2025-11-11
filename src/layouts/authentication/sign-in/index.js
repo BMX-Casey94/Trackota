@@ -32,11 +32,16 @@ function SignIn() {
     <CoverLayout
       title="Lovely to see you!"
       color="white"
-      description="Enter your email and password to sign in"
+      description="Enter your details to sign in."
       premotto="INSPIRED BY THE FUTURE:"
       motto="THE TRACKOTA DASHBOARD"
       image={bgSignIn}
       cardContent
+      action={{
+        type: "internal",
+        route: "/dashboard",
+        label: "DASHBOARD",
+      }}
     >
       <GradientBorder borderRadius={borders.borderRadius.form} minWidth="100%" maxWidth="100%">
         <VuiBox

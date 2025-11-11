@@ -8,11 +8,13 @@
 // @mui material components
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
+import { FormControl, Select, MenuItem, TextField, FormControlLabel, Switch } from "@mui/material";
 
 // Components
 import VuiBox from "components/VuiBox";
 import VuiTypography from "components/VuiTypography";
 import VuiProgress from "components/VuiProgress";
+import VuiButton from "components/VuiButton";
 import LineChart from "examples/Charts/LineCharts/LineChart";
 
 // layout components
@@ -34,17 +36,35 @@ function Strategy() {
   const [sectionsData, setSectionsData] = useState(null);
   const [telemetry, setTelemetry] = useState(null);
   const trackTitle = tyreDeg?.file ? tyreDeg.file.split("/").slice(-1)[0].replace(/[-_]/g, " ") : "";
+  // Respect current dataset/car selection saved by Dashboard
+  const [selectedFolder] = useState(() => {
+    try {
+      return localStorage.getItem("trackota:selectedFolder") || null;
+    } catch {
+      return null;
+    }
+  });
+  const [selectedCar] = useState(() => {
+    try {
+      const folder = typeof localStorage !== "undefined" ? localStorage.getItem("trackota:selectedFolder") : null;
+      return folder ? (localStorage.getItem(`trackota:selectedCar:${folder}`) || null) : null;
+    } catch {
+      return null;
+    }
+  });
 
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
+        const baseParams = selectedFolder ? { folder: selectedFolder } : {};
+        const carParams = selectedCar ? { ...baseParams, car: selectedCar } : baseParams;
         const [s, recs, top3, deg, tel] = await Promise.all([
-          api.getSummary(),
-          api.getRecommendations(),
-          api.getTopThree(),
-          api.getTyreDegChart(),
-          api.getTelemetry(),
+          api.getSummary(carParams),
+          api.getRecommendations(baseParams),
+          api.getTopThree(carParams),
+          api.getTyreDegChart(carParams),
+          api.getTelemetry(carParams),
         ]);
         if (!isMounted) return;
         setSummary(s);
@@ -59,7 +79,7 @@ function Strategy() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [selectedFolder, selectedCar]);
 
   const tyreColour = summary?.tyre?.colour || "#FFD060";
   const positionText = summary?.position != null ? `P${summary.position}` : "P—";
@@ -78,19 +98,21 @@ function Strategy() {
   useEffect(() => {
     (async () => {
       try {
-        const deg = await api.getTyreDegChart();
+        const baseParams = selectedFolder ? { folder: selectedFolder } : {};
+        const carParams = selectedCar ? { ...baseParams, car: selectedCar } : baseParams;
+        const deg = await api.getTyreDegChart(carParams);
         setTyreDeg(deg);
         if (showSections) {
-          const sec = await api.getSections();
+          const sec = await api.getSections(carParams);
           setSectionsData(sec);
         } else {
           setSectionsData(null);
         }
-        const tel = await api.getTelemetry();
+        const tel = await api.getTelemetry(carParams);
         setTelemetry(tel?.series || null);
       } catch {}
     })();
-  }, [showSections]);
+  }, [showSections, selectedFolder, selectedCar]);
 
   return (
     <DashboardLayout>
@@ -141,44 +163,312 @@ function Strategy() {
               alignItems: "start",
             }}
           >
-            {/* Left Sidebar – Live Race Metrics */}
-            <Card>
-              <VuiBox p={3}>
-                <VuiTypography variant="lg" color="white" fontWeight="bold" component="div" sx={{ mb: "8px" }}>
-                  Live Race Metrics
-                </VuiTypography>
-                <VuiTypography variant="button" color="text" fontWeight="medium" component="div" sx={{ mb: "12px" }}>
-                  Current Position: {positionText}
-                </VuiTypography>
-                <VuiTypography variant="button" color="success" fontWeight="bold" component="div" sx={{ mb: "4px" }}>
-                  Gap Ahead: {gapAheadText}
-                </VuiTypography>
-                <VuiTypography variant="button" color="error" fontWeight="bold" component="div" sx={{ mb: "12px" }}>
-                  Gap Behind: {gapBehindText}
-                </VuiTypography>
-                <VuiBox display="flex" alignItems="center" gap={1} mb="12px">
-                  <VuiBox
-                    sx={{
-                      width: "10px",
-                      height: "10px",
-                      borderRadius: "50%",
-                      backgroundColor: tyreColour,
-                    }}
-                  />
-                  <VuiTypography variant="button" color="text" fontWeight="medium" component="div">
-                    Tyre: {summary?.tyre?.compound || "—"}
+            {/* Left Sidebar – Live Race Metrics + Scenario Simulator */}
+            <VuiBox display="flex" flexDirection="column" gap={3}>
+              <Card>
+                <VuiBox p={3}>
+                  <VuiTypography variant="lg" color="white" fontWeight="bold" component="div" sx={{ mb: "8px" }}>
+                    Live Race Metrics
                   </VuiTypography>
+                  <VuiTypography variant="button" color="text" fontWeight="medium" component="div" sx={{ mb: "12px" }}>
+                    Current Position: {positionText}
+                  </VuiTypography>
+                  <VuiTypography variant="button" color="success" fontWeight="bold" component="div" sx={{ mb: "4px" }}>
+                    Gap Ahead: {gapAheadText}
+                  </VuiTypography>
+                  <VuiTypography variant="button" color="error" fontWeight="bold" component="div" sx={{ mb: "12px" }}>
+                    Gap Behind: {gapBehindText}
+                  </VuiTypography>
+                  <VuiBox display="flex" alignItems="center" gap={1} mb="12px">
+                    <VuiBox
+                      sx={{
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "50%",
+                        backgroundColor: tyreColour,
+                      }}
+                    />
+                    <VuiTypography variant="button" color="text" fontWeight="medium" component="div">
+                      Tyre: {summary?.tyre?.compound || "—"}
+                    </VuiTypography>
+                  </VuiBox>
+                  <VuiTypography variant="button" color="text" fontWeight="medium" component="div" sx={{ mb: "6px" }}>
+                    Laps on Tyres: {summary?.lapsOnTyre ?? "—"}
+                  </VuiTypography>
+                  <VuiProgress value={summary?.tyreWearPct ?? 0} color="info" sx={{ background: "#2D2E5F", mb: "14px" }} />
+                  <VuiTypography variant="button" color="text" fontWeight="medium" component="div" sx={{ mb: "6px" }}>
+                    Fuel Level: {summary?.fuelPct != null ? `${summary.fuelPct}%` : "—"}
+                  </VuiTypography>
+                  <VuiProgress value={summary?.fuelPct ?? 0} color="success" sx={{ background: "#2D2E5F" }} />
                 </VuiBox>
-                <VuiTypography variant="button" color="text" fontWeight="medium" component="div" sx={{ mb: "6px" }}>
-                  Laps on Tyres: {summary?.lapsOnTyre ?? "—"}
-                </VuiTypography>
-                <VuiProgress value={summary?.tyreWearPct ?? 0} color="info" sx={{ background: "#2D2E5F", mb: "14px" }} />
-                <VuiTypography variant="button" color="text" fontWeight="medium" component="div" sx={{ mb: "6px" }}>
-                  Fuel Level: {summary?.fuelPct != null ? `${summary.fuelPct}%` : "—"}
-                </VuiTypography>
-                <VuiProgress value={summary?.fuelPct ?? 0} color="success" sx={{ background: "#2D2E5F" }} />
-              </VuiBox>
-            </Card>
+              </Card>
+
+              <Card>
+                <VuiBox p={3}>
+                  <VuiTypography variant="lg" color="white" fontWeight="bold" component="div" sx={{ mb: "10px" }}>
+                    Scenario Simulator
+                  </VuiTypography>
+                  <VuiBox display="grid" gridTemplateColumns="1fr" gap={2}>
+                    <FormControlLabel
+                      label={
+                        <VuiTypography variant="button" color="text" fontWeight="medium">
+                          Show Sections
+                        </VuiTypography>
+                      }
+                      control={
+                        <Switch
+                          checked={showSections}
+                          onChange={(e) => setShowSections(e.target.checked)}
+                          color="info"
+                        />
+                      }
+                      sx={{ m: 0, display: "flex", justifyContent: "space-between" }}
+                    />
+
+                    <VuiBox display="flex" alignItems="center" justifyContent="space-between" gap={2}>
+                      <VuiTypography variant="button" color="text" fontWeight="medium">
+                        Pit on Lap
+                      </VuiTypography>
+                      <TextField
+                        type="number"
+                        size="small"
+                        inputProps={{ min: 1 }}
+                        value={sim.pitLap}
+                        onChange={(e) => setSim((s) => ({ ...s, pitLap: Number(e.target.value) }))}
+                        sx={{
+                          width: 110,
+                          "& .MuiOutlinedInput-root": {
+                            color: "#ffffff",
+                            background:
+                              "linear-gradient(126.97deg, rgba(6, 11, 40, 0.94) 28.26%, rgba(10, 14, 35, 0.8) 91.2%)",
+                            backdropFilter: "blur(20px)",
+                            border: "1px solid rgba(255, 255, 255, 0.125)",
+                            borderRadius: "10px",
+                            boxShadow: "0 4px 16px rgba(0, 0, 0, 0.25)",
+                            "& fieldset": { border: "none" },
+                            "&:hover": {
+                              background:
+                                "linear-gradient(126.97deg, rgba(6, 11, 40, 0.98) 28.26%, rgba(10, 14, 35, 0.9) 91.2%)",
+                              border: "1px solid rgba(255, 255, 255, 0.2)",
+                            },
+                            "&.Mui-focused": {
+                              background:
+                                "linear-gradient(126.97deg, rgba(6, 11, 40, 0.98) 28.26%, rgba(10, 14, 35, 0.9) 91.2%)",
+                              border: "1px solid rgba(44, 217, 255, 0.5)",
+                            },
+                          },
+                          "& .MuiInputBase-input": {
+                            color: "#ffffff",
+                            textAlign: "center",
+                            fontWeight: 500,
+                            px: 1.5,
+                            // Hide default number input arrows for custom styling
+                            "&::-webkit-outer-spin-button, &::-webkit-inner-spin-button": {
+                              WebkitAppearance: "none",
+                              margin: 0,
+                            },
+                            "&[type=number]": {
+                              MozAppearance: "textfield",
+                            },
+                          },
+                          // Custom glass-like increment/decrement buttons
+                          "& input[type=number]": {
+                            paddingRight: "8px",
+                          },
+                        }}
+                        InputProps={{
+                          endAdornment: (
+                            <VuiBox
+                              display="flex"
+                              flexDirection="column"
+                              sx={{
+                                position: "absolute",
+                                right: 4,
+                                height: "100%",
+                                justifyContent: "center",
+                                gap: "2px",
+                              }}
+                            >
+                              <VuiBox
+                                component="button"
+                                onClick={() => setSim((s) => ({ ...s, pitLap: s.pitLap + 1 }))}
+                                sx={{
+                                  background:
+                                    "linear-gradient(126.97deg, rgba(44, 217, 255, 0.15) 0%, rgba(44, 217, 255, 0.08) 100%)",
+                                  backdropFilter: "blur(10px)",
+                                  border: "1px solid rgba(44, 217, 255, 0.2)",
+                                  borderRadius: "4px",
+                                  width: "18px",
+                                  height: "12px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  padding: 0,
+                                  color: "rgba(44, 217, 255, 0.9)",
+                                  fontSize: "9px",
+                                  fontWeight: "bold",
+                                  transition: "all 0.2s",
+                                  "&:hover": {
+                                    background:
+                                      "linear-gradient(126.97deg, rgba(44, 217, 255, 0.25) 0%, rgba(44, 217, 255, 0.15) 100%)",
+                                    border: "1px solid rgba(44, 217, 255, 0.4)",
+                                  },
+                                }}
+                              >
+                                ▲
+                              </VuiBox>
+                              <VuiBox
+                                component="button"
+                                onClick={() => setSim((s) => ({ ...s, pitLap: Math.max(1, s.pitLap - 1) }))}
+                                sx={{
+                                  background:
+                                    "linear-gradient(126.97deg, rgba(44, 217, 255, 0.15) 0%, rgba(44, 217, 255, 0.08) 100%)",
+                                  backdropFilter: "blur(10px)",
+                                  border: "1px solid rgba(44, 217, 255, 0.2)",
+                                  borderRadius: "4px",
+                                  width: "18px",
+                                  height: "12px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  padding: 0,
+                                  color: "rgba(44, 217, 255, 0.9)",
+                                  fontSize: "9px",
+                                  fontWeight: "bold",
+                                  transition: "all 0.2s",
+                                  "&:hover": {
+                                    background:
+                                      "linear-gradient(126.97deg, rgba(44, 217, 255, 0.25) 0%, rgba(44, 217, 255, 0.15) 100%)",
+                                    border: "1px solid rgba(44, 217, 255, 0.4)",
+                                  },
+                                }}
+                              >
+                                ▼
+                              </VuiBox>
+                            </VuiBox>
+                          ),
+                        }}
+                      />
+                    </VuiBox>
+
+                    <VuiBox display="flex" alignItems="center" justifyContent="space-between" gap={2}>
+                      <VuiTypography variant="button" color="text" fontWeight="medium">
+                        Tyre Compound
+                      </VuiTypography>
+                      <FormControl size="small" sx={{ minWidth: 140 }}>
+                        <Select
+                          value={sim.compound}
+                          onChange={(e) => setSim((s) => ({ ...s, compound: e.target.value }))}
+                          sx={{
+                            color: "#ffffff",
+                            background:
+                              "linear-gradient(126.97deg, rgba(6, 11, 40, 0.94) 28.26%, rgba(10, 14, 35, 0.8) 91.2%)",
+                            backdropFilter: "blur(20px)",
+                            border: "1px solid rgba(255, 255, 255, 0.125)",
+                            borderRadius: "10px",
+                            px: 1.5,
+                            boxShadow: "0 4px 16px rgba(0, 0, 0, 0.25)",
+                            cursor: "pointer",
+                            ".MuiOutlinedInput-notchedOutline": { border: "none" },
+                            "& .MuiSelect-select": {
+                              display: "flex",
+                              alignItems: "center",
+                              minHeight: "unset",
+                              color: "#ffffff",
+                              paddingLeft: "12px !important",
+                              cursor: "pointer",
+                            },
+                            "& .MuiOutlinedInput-root": {
+                              cursor: "pointer",
+                            },
+                            "&:hover": {
+                              background:
+                                "linear-gradient(126.97deg, rgba(6, 11, 40, 0.98) 28.26%, rgba(10, 14, 35, 0.9) 91.2%)",
+                              border: "1px solid rgba(255, 255, 255, 0.2)",
+                            },
+                            "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+                            "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "none" },
+                            ".MuiSvgIcon-root, .MuiSelect-icon": { color: "#ffffff", pointerEvents: "none" },
+                          }}
+                          MenuProps={{
+                            PaperProps: {
+                              sx: {
+                                background:
+                                  "linear-gradient(127deg, rgba(6, 11, 40, 0.94) 28.26%, rgba(10, 14, 35, 0.94) 91.2%)",
+                                backdropFilter: "blur(42px)",
+                                border: "1px solid rgba(255, 255, 255, 0.125)",
+                                borderRadius: "10px",
+                                mt: 1,
+                                boxShadow: "0 7px 23px rgba(0, 0, 0, 0.31)",
+                                "& .MuiMenuItem-root": {
+                                  color: "#ffffff",
+                                  py: 1.5,
+                                  "&:hover": {
+                                    background: "rgba(44, 217, 255, 0.08)",
+                                  },
+                                  "&.Mui-selected": {
+                                    background: "rgba(44, 217, 255, 0.2)",
+                                    "&:hover": {
+                                      background: "rgba(44, 217, 255, 0.3)",
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          }}
+                        >
+                          {["Soft", "Medium", "Hard"].map((c) => (
+                            <MenuItem key={c} value={c}>
+                              {c}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </VuiBox>
+
+                    <FormControlLabel
+                      label={
+                        <VuiTypography variant="button" color="text" fontWeight="medium">
+                          Safety Car
+                        </VuiTypography>
+                      }
+                      control={
+                        <Switch
+                          checked={sim.safetyCar}
+                          onChange={(e) => setSim((s) => ({ ...s, safetyCar: e.target.checked }))}
+                          color="info"
+                        />
+                      }
+                      sx={{ m: 0, display: "flex", justifyContent: "space-between" }}
+                    />
+
+                    <VuiBox display="flex" justifyContent="flex-end">
+                      <VuiButton
+                        color="info"
+                        variant="contained"
+                        onClick={async () => {
+                          try {
+                            const baseParams = selectedFolder ? { folder: selectedFolder } : {};
+                            const carParams = selectedCar ? { ...baseParams, car: selectedCar } : baseParams;
+                            const res = await api.simulate({
+                              pitLap: sim.pitLap,
+                              compound: sim.compound,
+                              safetyCar: sim.safetyCar,
+                              ...carParams,
+                            });
+                            setSimSeries(Array.isArray(res?.times) ? res.times : []);
+                          } catch {}
+                        }}
+                      >
+                        Simulate
+                      </VuiButton>
+                    </VuiBox>
+                  </VuiBox>
+                </VuiBox>
+              </Card>
+            </VuiBox>
 
             {/* Centre – Tyre Degradation Chart Container */}
             <Card>
@@ -263,7 +553,7 @@ function Strategy() {
               </VuiBox>
             </Card>
 
-            {/* Right Sidebar – Strategy Recommendations & Simulator */}
+            {/* Right Sidebar – Strategy Recommendations & Telemetry */}
             <VuiBox display="flex" flexDirection="column" gap={3}>
               <Card>
                 <VuiBox p={3}>
@@ -293,66 +583,6 @@ function Strategy() {
                 </VuiBox>
               </Card>
 
-              <Card>
-                <VuiBox p={3}>
-                  <VuiTypography variant="lg" color="white" fontWeight="bold" component="div" sx={{ mb: "10px" }}>
-                    Scenario Simulator
-                  </VuiTypography>
-                  <VuiBox display="flex" flexDirection="column" gap={2}>
-                    <label style={{ color: "#c8cfca" }}>
-                      Show Sections
-                      <input
-                        type="checkbox"
-                        checked={showSections}
-                        onChange={(e) => setShowSections(e.target.checked)}
-                        style={{ marginLeft: 8 }}
-                      />
-                    </label>
-                    <label style={{ color: "#c8cfca" }}>
-                      Pit on Lap
-                      <input
-                        type="number"
-                        min={1}
-                        value={sim.pitLap}
-                        onChange={(e) => setSim((s) => ({ ...s, pitLap: Number(e.target.value) }))}
-                        style={{ marginLeft: 8, background: "#1B1C3A", color: "#c8cfca", border: "1px solid #56577A", borderRadius: 6, padding: "4px 8px" }}
-                      />
-                    </label>
-                    <label style={{ color: "#c8cfca" }}>
-                      Tyre Compound
-                      <select
-                        value={sim.compound}
-                        onChange={(e) => setSim((s) => ({ ...s, compound: e.target.value }))}
-                        style={{ marginLeft: 8, background: "#1B1C3A", color: "#c8cfca", border: "1px solid #56577A", borderRadius: 6, padding: "4px 8px" }}
-                      >
-                        <option>Soft</option>
-                        <option>Medium</option>
-                        <option>Hard</option>
-                      </select>
-                    </label>
-                    <label style={{ color: "#c8cfca" }}>
-                      Safety Car
-                      <input
-                        type="checkbox"
-                        checked={sim.safetyCar}
-                        onChange={(e) => setSim((s) => ({ ...s, safetyCar: e.target.checked }))}
-                        style={{ marginLeft: 8 }}
-                      />
-                    </label>
-                    <button
-                      onClick={async () => {
-                        try {
-                          const res = await api.simulate({ pitLap: sim.pitLap, compound: sim.compound, safetyCar: sim.safetyCar });
-                          setSimSeries(Array.isArray(res?.times) ? res.times : []);
-                        } catch {}
-                      }}
-                      style={{ background: "#2CD9FF", color: "#0b0d2a", border: 0, borderRadius: 8, padding: "8px 12px", fontWeight: 700, cursor: "pointer" }}
-                    >
-                      Simulate
-                    </button>
-                  </VuiBox>
-                </VuiBox>
-              </Card>
 
               <Card>
                 <VuiBox p={3}>

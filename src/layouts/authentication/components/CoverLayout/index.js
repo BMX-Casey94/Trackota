@@ -29,6 +29,7 @@ function CoverLayout({
   top,
   cardContent,
   children,
+  action,
 }) {
   const { gradients } = colors;
   return (
@@ -41,7 +42,7 @@ function CoverLayout({
       )}
     >
       <DefaultNavbar
-        action={{
+        action={action || {
           type: "external",
           route: "#",
           label: "BUY NOW",
@@ -211,6 +212,24 @@ CoverLayout.propTypes = {
   image: PropTypes.string.isRequired,
   top: PropTypes.number,
   children: PropTypes.node.isRequired,
+  action: PropTypes.oneOfType([
+    PropTypes.bool,
+    PropTypes.shape({
+      type: PropTypes.oneOf(["external", "internal"]).isRequired,
+      route: PropTypes.string.isRequired,
+      color: PropTypes.oneOf([
+        "primary",
+        "secondary",
+        "info",
+        "success",
+        "warning",
+        "error",
+        "dark",
+        "light",
+      ]),
+      label: PropTypes.string.isRequired,
+    }),
+  ]),
 };
 
 export default CoverLayout;

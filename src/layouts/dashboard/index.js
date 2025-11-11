@@ -190,7 +190,11 @@ function Dashboard() {
   const stintLaps = pitStart && currentLap ? Math.max(0, currentLap - pitStart + 1) : (pitStart ? Math.max(0, (timesUpTo.length - pitStart + 1)) : null);
   const last3 = timesUpTo.slice(-3);
   const lastMean = last3.length ? (last3.reduce((a, b) => a + b, 0) / last3.length) : null;
-  const tyreWearPct = bestLap && lastMean ? Math.max(0, Math.min(100, Math.round(((lastMean - bestLap) / bestLap) * 100))) : null;
+  // Local fallback computation for tyre wear if API does not provide it on summary
+  const tyreWearPctClient = bestLap && lastMean
+    ? Math.max(0, Math.min(100, Math.round(((lastMean - bestLap) / bestLap) * 100)))
+    : null;
+  const tyreWearPct = summary?.tyreWearPct != null ? summary.tyreWearPct : tyreWearPctClient;
 
   // Driver Consistency: higher is better; based on std dev over last 10 laps
   const stdDev = (() => {
@@ -374,13 +378,50 @@ function Dashboard() {
               }}
               sx={{
                 color: "#ffffff",
-                background: "#2CD9FF",
+                background: "linear-gradient(126.97deg, rgba(6, 11, 40, 0.94) 28.26%, rgba(10, 14, 35, 0.8) 91.2%)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(255, 255, 255, 0.125)",
                 borderRadius: "10px",
                 px: 1.5,
+                boxShadow: "0 4px 16px rgba(0, 0, 0, 0.25)",
                 ".MuiOutlinedInput-notchedOutline": { border: "none" },
+                "& .MuiSelect-select": {
+                  display: "flex",
+                  alignItems: "center",
+                  minHeight: "unset",
+                },
+                "&:hover": {
+                  background: "linear-gradient(126.97deg, rgba(6, 11, 40, 0.98) 28.26%, rgba(10, 14, 35, 0.9) 91.2%)",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                },
                 "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
                 "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "none" },
-                ".MuiSvgIcon-root, .MuiSelect-icon": { color: "#ffffff" },
+                ".MuiSvgIcon-root, .MuiSelect-icon": { color: "#ffffff", pointerEvents: "none" },
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    background: "linear-gradient(127deg, rgba(6, 11, 40, 0.94) 28.26%, rgba(10, 14, 35, 0.94) 91.2%)",
+                    backdropFilter: "blur(42px)",
+                    border: "1px solid rgba(255, 255, 255, 0.125)",
+                    borderRadius: "10px",
+                    mt: 1,
+                    boxShadow: "0 7px 23px rgba(0, 0, 0, 0.31)",
+                    "& .MuiMenuItem-root": {
+                      color: "#ffffff",
+                      py: 1.5,
+                      "&:hover": {
+                        background: "rgba(44, 217, 255, 0.08)",
+                      },
+                      "&.Mui-selected": {
+                        background: "rgba(44, 217, 255, 0.2)",
+                        "&:hover": {
+                          background: "rgba(44, 217, 255, 0.3)",
+                        },
+                      },
+                    },
+                  },
+                },
               }}
               displayEmpty
               renderValue={(value) => {
@@ -858,9 +899,13 @@ function Dashboard() {
                 <Grid container spacing={2}>
                   {(top3 || []).map((r, i) => (
                     <Grid key={`${r.name}-${i}`} item xs={12} md={4}>
-                      <VuiBox p={2} sx={{ background: "#1B1C3A", borderRadius: "12px" }}>
-                        <VuiTypography variant="button" color="text" fontWeight="medium">{r.name}</VuiTypography>
-                        <VuiTypography variant="lg" color="white" fontWeight="bold">{r.gap}</VuiTypography>
+                      <VuiBox p={2} sx={{ background: "#1B1C3A", borderRadius: "12px", textAlign: "center" }}>
+                        <VuiTypography variant="button" color="text" fontWeight="medium" component="div" sx={{ mb: "2px" }}>
+                          {r.name}
+                        </VuiTypography>
+                        <VuiTypography variant="lg" color="white" fontWeight="bold" component="div">
+                          {r.gap}
+                        </VuiTypography>
                       </VuiBox>
                     </Grid>
                   ))}

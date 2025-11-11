@@ -87,7 +87,10 @@ export const StrategyApi = {
     const q = new URLSearchParams(all).toString();
     return fetchJson(`/strategy/summary${q ? `?${q}` : ""}`);
   },
-  getRecommendations: () => fetchJson("/strategy/recommendations"),
+  getRecommendations: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return fetchJson(`/strategy/recommendations${q ? `?${q}` : ""}`);
+  },
   getTopThree: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return fetchJson(`/race/top3${q ? `?${q}` : ""}`);
@@ -106,11 +109,16 @@ export const StrategyApi = {
     return fetchJson(`/weather/trend${q ? `?${q}` : ""}`);
   },
   listDatasets: () => fetchJson("/datasets"),
-  simulate: ({ pitLap, compound, safetyCar }) =>
-    fetchJson("/strategy/simulate", {
+  simulate: ({ pitLap, compound, safetyCar, folder, car }) => {
+    const params = {};
+    if (folder) params.folder = folder;
+    if (car) params.car = car;
+    const q = new URLSearchParams(params).toString();
+    return fetchJson(`/strategy/simulate${q ? `?${q}` : ""}`, {
       method: "POST",
       body: JSON.stringify({ pitLap, compound, safetyCar }),
-    }),
+    });
+  },
   getSections: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return fetchJson(`/charts/sections${q ? `?${q}` : ""}`);
