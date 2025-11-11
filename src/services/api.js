@@ -1,9 +1,27 @@
 // Service layer for backend endpoints; default to same-origin /api (Vercel functions)
 const rawBase = process.env.REACT_APP_API_BASE;
 const defaultBase = "/api";
-// Avoid calling localhost in production builds even if misconfigured
+function isLocalBase(v) {
+  if (!v) return false;
+  let s = String(v).trim();
+  if (!/^https?:\/\//i.test(s)) s = `http://${s}`;
+  try {
+    const u = new URL(s);
+    const host = (u.hostname || "").toLowerCase();
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host === "::1" ||
+      host === "[::1]"
+    );
+  } catch {
+    return false;
+  }
+}
+// Avoid calling any localhost-style base in production builds, even if misconfigured
 const API_BASE =
-  (process.env.NODE_ENV === "production" && rawBase && /^https?:\/\/localhost/i.test(rawBase))
+  (process.env.NODE_ENV === "production" && isLocalBase(rawBase))
     ? defaultBase
     : (rawBase || defaultBase);
 
