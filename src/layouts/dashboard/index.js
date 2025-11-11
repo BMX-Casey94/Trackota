@@ -648,7 +648,17 @@ function Dashboard() {
                 <VuiTypography variant="lg" color="white" fontWeight="bold" mb="10px">
                   Weather Trend
                 </VuiTypography>
-                <VuiBox sx={{ width: "100%", height: "200px" }}>
+                <VuiBox
+                  sx={{
+                    width: "100%",
+                    height: "200px",
+                    // Improve legend readability: white text and a little space after the colour dot
+                    "& .apexcharts-legend-text": {
+                      color: "#ffffff !important",
+                      marginLeft: "6px",
+                    },
+                  }}
+                >
                   <LineChart
                     lineChartData={[
                       { name: "Air Temp (°C)", data: (weatherTrend?.air || []).map((y, i) => ({ x: weatherTrend?.labels?.[i], y })) },
@@ -658,10 +668,33 @@ function Dashboard() {
                       chart: { toolbar: { show: false } },
                       dataLabels: { enabled: false },
                       stroke: { curve: "smooth" },
+                      legend: {
+                        show: true,
+                        position: "bottom",
+                        labels: { colors: "#ffffff" },
+                        itemMargin: { horizontal: 10, vertical: 0 },
+                        markers: { width: 10, height: 10, radius: 12 },
+                      },
                       xaxis: {
                         type: "category",
                         categories: weatherTrend?.labels || [],
-                        labels: { style: { colors: "#c8cfca", fontSize: "10px" } },
+                        labels: {
+                          style: { colors: "#c8cfca", fontSize: "10px" },
+                          // Show every other label to avoid overlap; keep halfway markers without labels
+                          formatter: (value, timestamp, opts) => {
+                            try {
+                              const idx =
+                                typeof opts?.i === "number"
+                                  ? opts.i
+                                  : Array.isArray(weatherTrend?.labels)
+                                  ? weatherTrend.labels.indexOf(value)
+                                  : -1;
+                              return idx % 2 === 0 ? value : "";
+                            } catch {
+                              return value;
+                            }
+                          },
+                        },
                       },
                       yaxis: {
                         labels: { style: { colors: "#c8cfca", fontSize: "10px" } },
