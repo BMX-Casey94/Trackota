@@ -33,6 +33,11 @@ function SignIn() {
       premotto="INSPIRED BY THE FUTURE:"
       motto="THE TRACKOTA DASHBOARD"
       cardContent
+      action={{
+        type: "internal",
+        route: "/dashboard",
+        label: "DASHBOARD",
+      }}
     >
       <GradientBorder borderRadius={borders.borderRadius.form} minWidth="100%" maxWidth="100%">
         <VuiBox
