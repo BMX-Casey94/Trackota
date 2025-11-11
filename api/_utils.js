@@ -31,14 +31,45 @@ function splitCSVLine(line) {
   return result.map((s) => s.trim());
 }
 
+function splitWithDelimiter(line, delimiter) {
+  const result = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === delimiter && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result.map((s) => s.trim());
+}
+
 async function readCsvDicts(filePath, limit = 50000) {
   const content = await fs.promises.readFile(filePath, "utf8");
   const lines = content.split(/\r?\n/).filter((l) => l.trim() !== "");
-  if (!lines.length) return [];
-  const headers = splitCSVLine(lines[0]).map((h) => h.trim());
+  if (!lines.length) return { headers: [], rows: [] };
+
+  // Detect delimiter: prefer semicolon if present and more frequent
+  const headerLine = lines[0];
+  const commaCount = (headerLine.match(/,/g) || []).length;
+  const semiCount = (headerLine.match(/;/g) || []).length;
+  const delimiter = semiCount > commaCount ? ";" : ",";
+
+  const headers = splitWithDelimiter(headerLine, delimiter).map((h) => h.trim());
   const out = [];
   for (let i = 1; i < lines.length && out.length < limit; i++) {
-    const cols = splitCSVLine(lines[i]);
+    const cols = splitWithDelimiter(lines[i], delimiter);
     const row = {};
     for (let j = 0; j < headers.length; j++) {
       row[headers[j]] = cols[j] !== undefined ? cols[j] : "";
@@ -405,6 +436,82 @@ async function telemetryFromCsv(filePath, limit = 500) {
   }
 }
 
+// Classification helpers
+async function findClassificationCsv(folderRel) {
+  const base = datasetsBase();
+  const folder = path.join(base, folderRel);
+  let found = null;
+  async function walk(dir) {
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    for (const ent of entries) {
+      if (ent.name === "__MACOSX" || ent.name.startsWith(".")) continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        await walk(full);
+      } else if (
+        ent.isFile() &&
+        ent.name.toLowerCase().endsWith(".csv") &&
+        /provisional\s+results|results\s+gr|official/i.test(ent.name)
+      ) {
+        found = full;
+        return;
+      }
+    }
+  }
+  try {
+    await walk(folder);
+  } catch {}
+  return found;
+}
+
+async function listCarsFromClassification(filePath) {
+  try {
+    const { headers, rows } = await readCsvDicts(filePath, 1000);
+    const numKey = headers.find((h) => /^number$/i.test(h)) || null;
+    const posKey = headers.find((h) => /^position$/i.test(h)) || null;
+    if (!numKey) return [];
+    const out = [];
+    for (const r of rows) {
+      const number = r[numKey];
+      if (!number) continue;
+      out.push({
+        number: String(number).trim(),
+        position: posKey ? (r[posKey] ? Number(String(r[posKey]).trim()) : null) : null,
+      });
+    }
+    // sort by numeric position if present
+    out.sort((a, b) => {
+      if (a.position == null && b.position == null) return String(a.number).localeCompare(String(b.number));
+      if (a.position == null) return 1;
+      if (b.position == null) return -1;
+      return a.position - b.position;
+    });
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function parseGapSeconds(s) {
+  if (s == null) return null;
+  const str = String(s).trim();
+  if (!str || /lap/i.test(str)) return null;
+  // formats like +8.509 or 8.509s or 00:08.509
+  const colon = str.includes(":");
+  if (colon) {
+    // mm:ss.xxx
+    const parts = str.replace(/^\+/, "").split(":").map((p) => p.trim());
+    if (parts.length === 2) {
+      const mm = Number(parts[0]);
+      const ss = Number(parts[1]);
+      if (!Number.isNaN(mm) && !Number.isNaN(ss)) return mm * 60 + ss;
+    }
+  }
+  const num = Number(str.replace(/[^\d.]/g, ""));
+  if (Number.isNaN(num)) return null;
+  return num;
+}
+
 function computePitWindow(times) {
   let pitStart = null;
   let maxJump = 0.0;
@@ -431,6 +538,10 @@ module.exports = {
   computePitWindow,
   findWeatherCsv,
   extractWeatherSummary,
+  readCsvDicts,
+  findClassificationCsv,
+  listCarsFromClassification,
+  parseGapSeconds,
 };
 
 

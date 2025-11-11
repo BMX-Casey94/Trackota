@@ -89,6 +89,10 @@ export const StrategyApi = {
   },
   getRecommendations: () => fetchJson("/strategy/recommendations"),
   getTopThree: () => fetchJson("/race/top3"),
+  listCars: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return fetchJson(`/race/cars${q ? `?${q}` : ""}`);
+  },
   getTyreDegChart: (params = {}) => {
     const all = { ...params };
     const q = new URLSearchParams(all).toString();

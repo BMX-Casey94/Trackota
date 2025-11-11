@@ -2,7 +2,7 @@
 // @mui material components
 import Grid from "@mui/material/Grid";
 import Icon from "@mui/material/Icon";
-import { Card, LinearProgress, Stack, FormControl, InputLabel, Select, MenuItem } from "@mui/material";
+import { Card, LinearProgress, Stack, FormControl, InputLabel, Select, MenuItem, Slider, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { useEffect, useState } from "react";
 
 // Dashboard React components
@@ -57,6 +57,9 @@ function Dashboard() {
     }
   });
   const [datasetsLoading, setDatasetsLoading] = useState(true);
+  const [selectedLap, setSelectedLap] = useState(null);
+  const [carOptions, setCarOptions] = useState([]);
+  const [selectedCar, setSelectedCar] = useState(null);
 
   // Load dataset options from serverless API and choose sensible defaults (prefer Sebring Race 1/2)
   useEffect(() => {
@@ -95,13 +98,47 @@ function Dashboard() {
     return () => { active = false; };
   }, []);
 
+  // Load cars when folder changes
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!selectedFolder) {
+        setCarOptions([]);
+        setSelectedCar(null);
+        return;
+      }
+      try {
+        const res = await api.listCars({ folder: selectedFolder });
+        const cars = (res?.cars || []).map((c) => ({
+          label: c.position != null ? `#${c.number} (P${c.position})` : `#${c.number}`,
+          value: String(c.number),
+          position: c.position,
+        }));
+        if (!active) return;
+        setCarOptions(cars);
+        // Load persisted selection for this folder
+        const key = `trackota:selectedCar:${selectedFolder}`;
+        const saved = typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
+        const initial = (saved && cars.find((o) => o.value === saved)?.value) || (cars[0]?.value || null);
+        setSelectedCar(initial);
+        try { if (initial) localStorage.setItem(key, initial); } catch {}
+      } catch (e) {
+        console.error("Failed to load car list:", e);
+        if (!active) return;
+        setCarOptions([]);
+        setSelectedCar(null);
+      }
+    })();
+    return () => { active = false; };
+  }, [selectedFolder, api]);
+
   useEffect(() => {
     let isMounted = true;
     (async () => {
       try {
         setLoading(true);
         const [s, deg, tel, sec] = await Promise.all([
-          api.getSummary(selectedFolder ? { folder: selectedFolder } : {}),
+          api.getSummary(selectedFolder ? { folder: selectedFolder, ...(selectedCar ? { car: selectedCar } : {}) } : {}),
           api.getTyreDegChart(selectedFolder ? { folder: selectedFolder } : {}),
           api.getTelemetry(selectedFolder ? { folder: selectedFolder } : {}),
           api.getSections(selectedFolder ? { folder: selectedFolder } : {}),
@@ -111,6 +148,9 @@ function Dashboard() {
         setTyreDeg(deg);
         setTelemetry(tel?.series || null);
         setSectionsData(sec || null);
+        // Initialise selected lap to the last available lap
+        const total = Array.isArray(deg?.times) ? deg.times.length : (s?.totalLaps || null);
+        if (total && isMounted) setSelectedLap(total);
       } catch (e) {
         console.error("Dashboard data fetch error:", e);
         // Fallback to mock data if real API fails and mocks are not already enabled
@@ -136,24 +176,25 @@ function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, [selectedFolder]); // re-fetch when dataset changes
+  }, [selectedFolder, selectedCar]); // re-fetch when dataset or car changes
 
-  const currentLap = summary?.currentLap;
-  const totalLaps = summary?.totalLaps;
+  const totalLaps = summary?.totalLaps || (Array.isArray(tyreDeg?.times) ? tyreDeg.times.length : null);
+  const currentLap = selectedLap || totalLaps || null;
   const remainingLaps = currentLap && totalLaps ? Math.max(totalLaps - currentLap, 0) : null;
   const positionText = summary?.position ? `P${summary.position}` : "P—";
-  const gapAheadText = summary?.gapAhead != null ? `${summary.gapAhead > 0 ? "+" : ""}${summary.gapAhead}s` : "—";
+  const gapAheadText = summary?.gapAhead != null ? `${summary.gapAhead > 0 ? "+" : ""}${summary.gapAhead}s` : "";
   const tyreCompound = summary?.tyre?.compound || "—";
-  const lapsOnTyre = summary?.lapsOnTyre != null ? `${summary.lapsOnTyre} laps` : "—";
+  const lapsOnTyre = summary?.tyre?.compound && summary?.lapsOnTyre != null ? `${summary.lapsOnTyre} laps` : "";
   const fuelPctText = summary?.fuelPct != null ? `${summary.fuelPct}%` : "—";
 
   const times = Array.isArray(tyreDeg?.times) ? tyreDeg.times : [];
-  const bestLap = times.length ? Math.min(...times) : null;
-  const lastWindow = times.slice(Math.max(0, times.length - 10));
+  const timesUpTo = currentLap ? times.slice(0, currentLap) : times;
+  const bestLap = timesUpTo.length ? Math.min(...timesUpTo) : null;
+  const lastWindow = timesUpTo.slice(Math.max(0, timesUpTo.length - 10));
   const avgLap = lastWindow.length ? (lastWindow.reduce((a, b) => a + b, 0) / lastWindow.length) : null;
   const pitStart = tyreDeg?.pitWindow?.start;
-  const stintLaps = pitStart && currentLap ? Math.max(0, currentLap - pitStart + 1) : (pitStart ? Math.max(0, (times.length - pitStart + 1)) : null);
-  const last3 = times.slice(-3);
+  const stintLaps = pitStart && currentLap ? Math.max(0, currentLap - pitStart + 1) : (pitStart ? Math.max(0, (timesUpTo.length - pitStart + 1)) : null);
+  const last3 = timesUpTo.slice(-3);
   const lastMean = last3.length ? (last3.reduce((a, b) => a + b, 0) / last3.length) : null;
   const tyreWearPct = bestLap && lastMean ? Math.max(0, Math.min(100, Math.round(((lastMean - bestLap) / bestLap) * 100))) : null;
 
@@ -193,7 +234,11 @@ function Dashboard() {
         return { name, delta, last: parseFloat(last.toFixed(3)), avg: parseFloat(avg.toFixed(3)) };
       })
     : [];
-  const consistencySeries = lastWindow.length ? lastWindow.map((t, i) => ({ x: times.length - lastWindow.length + i + 1, y: t })) : [];
+  const consistencySeries = lastWindow.length ? lastWindow.map((t, i) => ({ x: (timesUpTo.length - lastWindow.length + i + 1), y: t })) : [];
+  const recentLapPairs = timesUpTo.slice(-10).map((t, i, arr) => {
+    const lapNum = timesUpTo.length - arr.length + i + 1;
+    return { lap: lapNum, time: t };
+  });
 
   if (loading) {
     return (
@@ -210,9 +255,42 @@ function Dashboard() {
   return (
     <DashboardLayout>
       <DashboardNavbar />
-      <VuiBox px={3} mt={2} mb={1} display="flex" justifyContent="flex-end" alignItems="center">
+      <VuiBox px={3} mt={2} mb={1} display="flex" justifyContent="flex-start" alignItems="center" gap={2}>
         {!!datasetOptions.length && (
-          <FormControl size="small" sx={{ minWidth: 220 }}>
+          // Prefer Race 1 / Race 2 toggle if those options exist
+          (() => {
+            const hasRaceToggle = datasetOptions.length <= 3 && datasetOptions.every((o) => /race/i.test(o.label));
+            if (hasRaceToggle) {
+              return (
+                <ToggleButtonGroup
+                  exclusive
+                  size="small"
+                  value={selectedFolder || ""}
+                  onChange={(_, v) => {
+                    if (!v) return;
+                    setSelectedFolder(v);
+                    try { localStorage.setItem("trackota:selectedFolder", v || ""); } catch {}
+                  }}
+                  sx={{
+                    background: "#1B1C3A",
+                    borderRadius: "10px",
+                    "& .MuiToggleButtonGroup-grouped": {
+                      color: "#c8cfca",
+                      borderColor: "#56577A",
+                      "&.Mui-selected": { color: "#0d0d0d", background: "#2CD9FF" },
+                    },
+                  }}
+                >
+                  {datasetOptions.map((opt) => (
+                    <ToggleButton key={opt.value} value={opt.value} sx={{ textTransform: "none", px: 2 }}>
+                      {opt.label}
+                    </ToggleButton>
+                  ))}
+                </ToggleButtonGroup>
+              );
+            }
+            return (
+          <FormControl size="small" sx={{ minWidth: 240 }}>
             <InputLabel id="dataset-select-label" sx={{ color: "#c8cfca" }}>Dataset</InputLabel>
             <Select
               labelId="dataset-select-label"
@@ -236,6 +314,51 @@ function Dashboard() {
               ))}
             </Select>
           </FormControl>
+            );
+          })()
+        )}
+        {totalLaps ? (
+          <VuiBox display="flex" alignItems="center" gap={2} sx={{ minWidth: "260px", maxWidth: "480px", width: "40%" }}>
+            <VuiTypography variant="button" color="text">Lap</VuiTypography>
+            <Slider
+              value={currentLap || 1}
+              min={1}
+              max={totalLaps}
+              step={1}
+              onChange={(_, v) => setSelectedLap(Array.isArray(v) ? v[0] : v)}
+              sx={{
+                color: "#2CD9FF",
+                '& .MuiSlider-thumb': { boxShadow: "none" },
+              }}
+            />
+            <VuiTypography variant="button" color="white">{currentLap ?? "—"}</VuiTypography>
+          </VuiBox>
+        ) : null}
+        {!!carOptions.length && (
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel id="car-select-label" sx={{ color: "#c8cfca" }}>Car</InputLabel>
+            <Select
+              labelId="car-select-label"
+              id="car-select"
+              value={selectedCar || ""}
+              label="Car"
+              onChange={(e) => {
+                const value = e.target.value || null;
+                setSelectedCar(value);
+                try { localStorage.setItem(`trackota:selectedCar:${selectedFolder}`, value || ""); } catch {}
+              }}
+              sx={{
+                color: "white",
+                ".MuiOutlinedInput-notchedOutline": { borderColor: "#56577A" },
+                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#8F91B5" },
+                ".MuiSvgIcon-root": { color: "#c8cfca" },
+              }}
+            >
+              {carOptions.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         )}
       </VuiBox>
       <VuiBox py={3}>
@@ -253,7 +376,7 @@ function Dashboard() {
               <MiniStatisticsCard
                 title={{ text: "position" }}
                 count={positionText}
-                percentage={{ color: "success", text: `gap ahead ${gapAheadText}` }}
+                percentage={{ color: "success", text: gapAheadText ? `gap ahead ${gapAheadText}` : "" }}
                 icon={{ color: "info", component: <IoGlobe size="22px" color="white" /> }}
               />
             </Grid>
@@ -307,7 +430,10 @@ function Dashboard() {
                         xaxis: {
                           type: "numeric",
                           title: { text: "Lap" },
-                          labels: { style: { colors: "#c8cfca", fontSize: "10px" } },
+                          labels: {
+                            style: { colors: "#c8cfca", fontSize: "10px" },
+                            formatter: (v) => `${Math.round(v)}`,
+                          },
                           categories: times.map((_, i) => i + 1),
                         },
                         yaxis: {
@@ -324,20 +450,6 @@ function Dashboard() {
             <Grid item xs={12} lg={6} xl={5}>
               <Card>
                 <VuiBox>
-                  <VuiBox
-                    mb="24px"
-                    height="220px"
-                    sx={{
-                      background: linearGradient(
-                        cardContent.main,
-                        cardContent.state,
-                        cardContent.deg
-                      ),
-                      borderRadius: "20px",
-                    }}
-                  >
-                      {/* Stint overview chart removed; reserve space for metrics */}
-                  </VuiBox>
                   <VuiTypography variant="lg" color="white" fontWeight="bold" mb="5px">
                     Stint Metrics
                   </VuiTypography>
@@ -591,6 +703,27 @@ function Dashboard() {
                       <VuiTypography variant="button" color="text">No section data available.</VuiTypography>
                     </Grid>
                   )}
+                </Grid>
+              </VuiBox>
+            </Card>
+          </Grid>
+          <Grid item xs={12}>
+            <Card>
+              <VuiBox p={3}>
+                <VuiTypography variant="lg" color="white" fontWeight="bold" mb="10px">
+                  Recent Lap Times
+                </VuiTypography>
+                <Grid container spacing={2}>
+                  {recentLapPairs.map((p) => (
+                    <Grid key={p.lap} item xs={6} md={2}>
+                      <Card>
+                        <VuiBox p={2} textAlign="center">
+                          <VuiTypography color="text" variant="caption">Lap {p.lap}</VuiTypography>
+                          <VuiTypography color="white" variant="lg" fontWeight="bold">{p.time?.toFixed(1)}s</VuiTypography>
+                        </VuiBox>
+                      </Card>
+                    </Grid>
+                  ))}
                 </Grid>
               </VuiBox>
             </Card>

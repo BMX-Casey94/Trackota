@@ -40,17 +40,19 @@ function Strategy() {
     let isMounted = true;
     (async () => {
       try {
-        const [s, recs, top3, deg] = await Promise.all([
+        const [s, recs, top3, deg, tel] = await Promise.all([
           api.getSummary(),
           api.getRecommendations(),
           api.getTopThree(),
           api.getTyreDegChart(),
+          api.getTelemetry(),
         ]);
         if (!isMounted) return;
         setSummary(s);
         setRecommendations(recs);
         setTopThree(top3);
         setTyreDeg(deg);
+        setTelemetry(tel?.series || null);
       } catch (e) {
         // For now we silently fallback to placeholders
       }
@@ -61,7 +63,7 @@ function Strategy() {
   }, []);
 
   const tyreColour = summary?.tyre?.colour || "#FFD060";
-  const positionText = summary ? `P${summary.position}` : "P-";
+  const positionText = summary?.position != null ? `P${summary.position}` : "P—";
   const gapAheadText = summary?.gapAhead != null ? `${summary.gapAhead > 0 ? "+" : ""}${summary.gapAhead}s` : "—";
   const gapBehindText = summary?.gapBehind != null ? `${summary.gapBehind > 0 ? "+" : ""}${summary.gapBehind}s` : "—";
   const lapsText = summary ? `${summary.currentLap}/${summary.totalLaps}` : "—/—";
@@ -133,24 +135,26 @@ function Strategy() {
               display: "grid",
               gridTemplateColumns: {
                 xs: "1fr",
-                xl: "30% 45% 25%",
+                // Use fr units so gaps don't overflow container; preserve 30/45/25 ratio
+                xl: "minmax(0, 6fr) minmax(0, 9fr) minmax(0, 5fr)",
               },
               gap: "24px",
+              alignItems: "start",
             }}
           >
             {/* Left Sidebar – Live Race Metrics */}
             <Card>
               <VuiBox p={3}>
-                <VuiTypography variant="lg" color="white" fontWeight="bold" mb="8px">
+                <VuiTypography variant="lg" color="white" fontWeight="bold" component="div" sx={{ mb: "8px" }}>
                   Live Race Metrics
                 </VuiTypography>
-                <VuiTypography variant="button" color="text" fontWeight="medium" mb="12px">
+                <VuiTypography variant="button" color="text" fontWeight="medium" component="div" sx={{ mb: "12px" }}>
                   Current Position: {positionText}
                 </VuiTypography>
-                <VuiTypography variant="button" color="success" fontWeight="bold" mb="4px">
+                <VuiTypography variant="button" color="success" fontWeight="bold" component="div" sx={{ mb: "4px" }}>
                   Gap Ahead: {gapAheadText}
                 </VuiTypography>
-                <VuiTypography variant="button" color="error" fontWeight="bold" mb="12px">
+                <VuiTypography variant="button" color="error" fontWeight="bold" component="div" sx={{ mb: "12px" }}>
                   Gap Behind: {gapBehindText}
                 </VuiTypography>
                 <VuiBox display="flex" alignItems="center" gap={1} mb="12px">
@@ -162,15 +166,15 @@ function Strategy() {
                       backgroundColor: tyreColour,
                     }}
                   />
-                  <VuiTypography variant="button" color="text" fontWeight="medium">
+                  <VuiTypography variant="button" color="text" fontWeight="medium" component="div">
                     Tyre: {summary?.tyre?.compound || "—"}
                   </VuiTypography>
                 </VuiBox>
-                <VuiTypography variant="button" color="text" fontWeight="medium" mb="6px">
+                <VuiTypography variant="button" color="text" fontWeight="medium" component="div" sx={{ mb: "6px" }}>
                   Laps on Tyres: {summary?.lapsOnTyre ?? "—"}
                 </VuiTypography>
                 <VuiProgress value={summary?.tyreWearPct ?? 0} color="info" sx={{ background: "#2D2E5F", mb: "14px" }} />
-                <VuiTypography variant="button" color="text" fontWeight="medium" mb="6px">
+                <VuiTypography variant="button" color="text" fontWeight="medium" component="div" sx={{ mb: "6px" }}>
                   Fuel Level: {summary?.fuelPct != null ? `${summary.fuelPct}%` : "—"}
                 </VuiTypography>
                 <VuiProgress value={summary?.fuelPct ?? 0} color="success" sx={{ background: "#2D2E5F" }} />
@@ -180,15 +184,20 @@ function Strategy() {
             {/* Centre – Tyre Degradation Chart Container */}
             <Card>
               <VuiBox p={3}>
-                <VuiTypography variant="lg" color="white" fontWeight="bold" mb="6px">
+                <VuiTypography variant="lg" color="white" fontWeight="bold" component="div" sx={{ mb: "6px" }}>
                   {trackTitle ? `${trackTitle} — ` : ""}Tyre Degradation (Lap Time vs Lap)
                 </VuiTypography>
                 {tyreDeg && lapsCount ? (
-                  <VuiTypography variant="button" color="text" fontWeight="regular" mb="24px">
-                    Laps: {lapsCount} — Pit window: {tyreDeg.pitWindow?.start ?? "—"}–{tyreDeg.pitWindow?.end ?? "—"}
-                  </VuiTypography>
+                  <VuiBox sx={{ mb: "24px" }}>
+                    <VuiTypography variant="button" color="text" fontWeight="regular" component="div">
+                      Laps: {lapsCount}
+                    </VuiTypography>
+                    <VuiTypography variant="button" color="text" fontWeight="regular" component="div">
+                      Pit window: {tyreDeg.pitWindow?.start ?? "—"}–{tyreDeg.pitWindow?.end ?? "—"}
+                    </VuiTypography>
+                  </VuiBox>
                 ) : (
-                  <VuiTypography variant="button" color="text" fontWeight="regular" mb="24px">
+                  <VuiTypography variant="button" color="text" fontWeight="regular" component="div" sx={{ mb: "24px" }}>
                     Placeholder chart. X: Lap, Y: Lap Time (s). Pit window highlighted.
                   </VuiTypography>
                 )}
@@ -259,17 +268,21 @@ function Strategy() {
             <VuiBox display="flex" flexDirection="column" gap={3}>
               <Card>
                 <VuiBox p={3}>
-                  <VuiTypography variant="lg" color="white" fontWeight="bold" mb="10px">
+                  <VuiTypography variant="lg" color="white" fontWeight="bold" component="div" sx={{ mb: "10px" }}>
                     Strategy Recommendations
                   </VuiTypography>
                   {(recommendationsList).map((r, idx) => {
                     const borderColour = r.style === "optimal" ? "#3B82F6" : r.style === "caution" ? "#F59E0B" : "#EF4444";
                     return (
                       <VuiBox key={idx} mb={idx === (recommendationsList.length - 1) ? 0 : 2} p={2} sx={{ border: `1px solid ${borderColour}`, borderRadius: "12px" }}>
-                        <VuiTypography variant="button" color="text" fontWeight="bold">
-                          {r.text}
-                        </VuiTypography>
-                        <VuiTypography variant="caption" color="text">
+                        {String(r.text || "")
+                          .split("—")
+                          .map((part, i) => (
+                            <VuiTypography key={i} variant="button" color="text" fontWeight="bold" component="div">
+                              {part.trim()}
+                            </VuiTypography>
+                          ))}
+                        <VuiTypography variant="caption" color="text" component="div">
                           Reasoning: {r.reason}
                         </VuiTypography>
                       </VuiBox>
@@ -283,7 +296,7 @@ function Strategy() {
 
               <Card>
                 <VuiBox p={3}>
-                  <VuiTypography variant="lg" color="white" fontWeight="bold" mb="10px">
+                  <VuiTypography variant="lg" color="white" fontWeight="bold" component="div" sx={{ mb: "10px" }}>
                     Scenario Simulator
                   </VuiTypography>
                   <VuiBox display="flex" flexDirection="column" gap={2}>
@@ -344,7 +357,7 @@ function Strategy() {
 
               <Card>
                 <VuiBox p={3}>
-                  <VuiTypography variant="lg" color="white" fontWeight="bold" mb="10px">
+                  <VuiTypography variant="lg" color="white" fontWeight="bold" component="div" sx={{ mb: "10px" }}>
                     Live Telemetry
                   </VuiTypography>
                   <VuiBox display="grid" gridTemplateColumns="1fr 1fr" gap={12}>
@@ -375,7 +388,7 @@ function Strategy() {
         <VuiBox>
           <Card>
             <VuiBox p={3}>
-              <VuiTypography variant="lg" color="white" fontWeight="bold" mb="8px">
+              <VuiTypography variant="lg" color="white" fontWeight="bold" component="div" sx={{ mb: "8px" }}>
                 Top 3 — Live Tracker
               </VuiTypography>
               <Grid container spacing={3}>

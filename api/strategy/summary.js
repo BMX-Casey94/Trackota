@@ -7,12 +7,16 @@ const {
   computePitWindow,
   findWeatherCsv,
   extractWeatherSummary,
+  findClassificationCsv,
+  readCsvDicts,
+  parseGapSeconds,
 } = require("../_utils");
 
 module.exports = async (req, res) => {
   try {
     const base = datasetsBase();
     const folder = req.query.folder || (await firstDatasetFolder());
+    const carNumber = req.query.car ? String(req.query.car).trim() : null;
     let times = [];
     if (folder) {
       const candidate = await findCandidateCsv(folder);
@@ -49,13 +53,34 @@ module.exports = async (req, res) => {
       }
     }
 
+    // Position and gaps from classification if car is provided
+    let position = null;
+    let gapAhead = null;
+    if (folder && carNumber) {
+      const cls = await findClassificationCsv(folder);
+      if (cls) {
+        const { headers, rows } = await readCsvDicts(cls, 1000);
+        const numKey = headers.find((h) => /^number$/i.test(h)) || null;
+        const posKey = headers.find((h) => /^position$/i.test(h)) || null;
+        const gapPrevKey = headers.find((h) => /^gap[_\s-]?previous$/i.test(h)) || null;
+        if (numKey && posKey) {
+          const row = rows.find((r) => String(r[numKey]).trim() === carNumber);
+          if (row) {
+            const p = Number(String(row[posKey]).trim());
+            position = Number.isNaN(p) ? null : p;
+            if (gapPrevKey) gapAhead = parseGapSeconds(row[gapPrevKey]);
+          }
+        }
+      }
+    }
+
     res.status(200).json({
       currentLap: total || null,
       totalLaps: total || null,
       session: "Race",
       weather: weather || null,
-      position: null,
-      gapAhead: null,
+      position,
+      gapAhead,
       gapBehind: null,
       tyre: null,
       lapsOnTyre: lapsOnTyre,

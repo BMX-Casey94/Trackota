@@ -13,6 +13,9 @@ import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 // Overview page components
 import Header from "layouts/profile/components/Header";
 import PlatformSettings from "layouts/profile/components/PlatformSettings";
+import Welcome from "layouts/profile/components/Welcome";
+import ProfileInfoCard from "examples/Cards/InfoCards/ProfileInfoCard";
+import CarInformations from "layouts/profile/components/CarInformations";
 import LineChart from "examples/Charts/LineCharts/LineChart";
 import BarChart from "examples/Charts/BarCharts/BarChart";
 import { StrategyApi, MockStrategyApi } from "services/api";
@@ -132,135 +135,38 @@ function Overview() {
             },
           })}
         >
-          {/* Left – Driver & Car Profile */}
-          <Grid item xs={12} xl={6}>
-            <Card>
-              <VuiBox p={3}>
-                <VuiTypography color="white" variant="lg" fontWeight="bold" mb="6px">
-                  Driver & Car Profile
-                </VuiTypography>
-                <VuiTypography color="text" variant="button" fontWeight="regular" mb="16px">
-                  Track: {trackName} — Event: {eventName}
-                </VuiTypography>
-                <Grid container spacing={2}>
-                  <Grid item xs={6} md={3}>
-                    <VuiTypography color="text" variant="button">Session</VuiTypography>
-                    <VuiTypography color="white" variant="lg" fontWeight="bold">{summary?.session || "Race"}</VuiTypography>
-                  </Grid>
-                  <Grid item xs={6} md={3}>
-                    <VuiTypography color="text" variant="button">Laps</VuiTypography>
-                    <VuiTypography color="white" variant="lg" fontWeight="bold">{lapsText}</VuiTypography>
-                  </Grid>
-                  <Grid item xs={6} md={3}>
-                    <VuiTypography color="text" variant="button">Position</VuiTypography>
-                    <VuiTypography color="white" variant="lg" fontWeight="bold">{positionText}</VuiTypography>
-                  </Grid>
-                  <Grid item xs={6} md={3}>
-                    <VuiTypography color="text" variant="button">Tyres</VuiTypography>
-                    <VuiTypography color="white" variant="lg" fontWeight="bold">{tyreText}</VuiTypography>
-                  </Grid>
-                  <Grid item xs={6} md={3}>
-                    <VuiTypography color="text" variant="button">Fuel</VuiTypography>
-                    <VuiTypography color="white" variant="lg" fontWeight="bold">{fuelText}</VuiTypography>
-                  </Grid>
-                </Grid>
-              </VuiBox>
-            </Card>
+          {/* Restore original left column welcome */}
+          <Grid item xs={12} xl={4} xxl={3}>
+            <Welcome />
           </Grid>
-
-          {/* Right – Section Snapshot */}
-          <Grid item xs={12} xl={6}>
-            <Card>
-              <VuiBox p={3}>
-                <VuiTypography color="white" variant="lg" fontWeight="bold" mb="6px">
-                  Section Snapshot (avg of last 5 laps)
-                </VuiTypography>
-                <VuiBox height="220px">
-                  <BarChart
-                    barChartData={[{ name: "Time (s)", data: sectionAverages }]}
-                    barChartOptions={{
-                      chart: { toolbar: { show: false } },
-                      tooltip: { theme: "dark" },
-                      xaxis: { categories: sectionNames, labels: { style: { colors: "#fff", fontSize: "10px" } } },
-                      yaxis: { labels: { style: { colors: "#fff", fontSize: "10px" } } },
-                      grid: { show: false },
-                      dataLabels: { enabled: false },
-                      plotOptions: { bar: { borderRadius: 8, columnWidth: "16px" } },
-                      fill: { colors: "#2CD9FF" },
-                    }}
-                  />
-                </VuiBox>
-              </VuiBox>
-            </Card>
+          {/* Middle – Car overview (original widget retained) */}
+          <Grid item xs={12} xl={5} xxl={6}>
+            <CarInformations />
+          </Grid>
+          {/* Right – Profile details card */}
+          <Grid item xs={12} xl={3} xxl={3}>
+            <ProfileInfoCard
+              title="profile information"
+              description="Akio Toyoda — Toyota Gazoo Racing leadership profile."
+              info={{
+                fullName: "Akio Toyoda",
+                mobile: "(+81) 123 456 789",
+                email: "akio@toyota.co.jp",
+                location: "Japan",
+              }}
+              social={[]}
+            />
           </Grid>
         </Grid>
       </VuiBox>
+      {/* Keep PlatformSettings; remove analytics lists from Profile */}
       <Grid container spacing={3} mb="30px">
         <Grid item xs={12} xl={3} height="100%">
           <PlatformSettings />
         </Grid>
-        <Grid item xs={12} xl={9}>
-          <Card>
-            <VuiBox display="flex" flexDirection="column" height="100%">
-              <VuiBox display="flex" flexDirection="column" mb="24px">
-                <VuiTypography color="white" variant="lg" fontWeight="bold" mb="6px">
-                  Recent Lap Times
-                </VuiTypography>
-                <VuiTypography color="text" variant="button" fontWeight="regular">
-                  Last 10 laps recorded from dataset
-                </VuiTypography>
-              </VuiBox>
-              <Grid container spacing={2}>
-                {recentLapPairs.map((p) => (
-                  <Grid key={p.lap} item xs={6} md={3} lg={2}>
-                    <Card>
-                      <VuiBox p={2} textAlign="center">
-                        <VuiTypography color="text" variant="caption">Lap {p.lap}</VuiTypography>
-                        <VuiTypography color="white" variant="lg" fontWeight="bold">{p.time?.toFixed(1)}s</VuiTypography>
-                      </VuiBox>
-                    </Card>
-                  </Grid>
-                ))}
-                {!recentLapPairs.length && (
-                  <Grid item xs={12}>
-                    <VuiTypography color="text" variant="button">No lap data available.</VuiTypography>
-                  </Grid>
-                )}
-              </Grid>
-            </VuiBox>
-          </Card>
-        </Grid>
+        <Grid item xs={12} xl={9}></Grid>
       </Grid>
-
-      <Grid container spacing={3} mb="30px">
-        <Grid item xs={12} xl={12}>
-          <Card>
-            <VuiBox p={3}>
-              <VuiTypography color="white" variant="lg" fontWeight="bold" mb="6px">
-                Telemetry Snapshot
-              </VuiTypography>
-              <VuiBox display="grid" gridTemplateColumns="1fr 1fr 1fr 1fr" gap={12}>
-                <VuiBox>
-                  <VuiTypography variant="button" color="text">Speed</VuiTypography>
-                  <VuiTypography variant="lg" color="white" fontWeight="bold">{telemetry?.speed?.slice(-1)[0] != null ? `${telemetry.speed.slice(-1)[0]} mph` : "—"}</VuiTypography>
-                </VuiBox>
-                <VuiBox>
-                  <VuiTypography variant="button" color="text">Gear</VuiTypography>
-                  <VuiTypography variant="lg" color="white" fontWeight="bold">{telemetry?.gear?.slice(-1)[0] ?? "—"}</VuiTypography>
-                </VuiBox>
-                <VuiBox>
-                  <VuiTypography variant="button" color="text">Throttle</VuiTypography>
-                  <VuiTypography variant="lg" color="white" fontWeight="bold">{telemetry?.throttle?.slice(-1)[0] != null ? `${telemetry.throttle.slice(-1)[0]}%` : "—"}</VuiTypography>
-                </VuiBox>
-                <VuiBox>
-                  <VuiTypography variant="button" color="text">Brake F/R</VuiTypography>
-                  <VuiTypography variant="lg" color="white" fontWeight="bold">{telemetry?.brake_f?.slice(-1)[0] ?? "—"} / {telemetry?.brake_r?.slice(-1)[0] ?? "—"}</VuiTypography>
-                </VuiBox>
-              </VuiBox>
-            </VuiBox>
-          </Card>
-        </Grid>
-      </Grid>
+      {/* Telemetry/Laps/Sections analytics removed from Profile (now on Dashboard/Strategy) */}
 
       <Footer />
     </DashboardLayout>
