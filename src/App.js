@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 
 // react-router components
-import { Route, Switch, Redirect, useLocation } from "react-router-dom";
+import { Route, Routes, Navigate, useLocation } from "react-router-dom";
 
 // @mui material components
 import { ThemeProvider } from "@mui/material/styles";
@@ -85,7 +85,8 @@ export default function App() {
       }
 
       if (route.route) {
-        return <Route exact path={route.route} component={route.component} key={route.key} />;
+        const Component = route.component;
+        return <Route path={route.route} element={<Component />} key={route.key} />;
       }
 
       return null;
@@ -134,10 +135,10 @@ export default function App() {
           </>
         )}
         {layout === "vr" && <Configurator />}
-        <Switch>
+        <Routes>
           {getRoutes(routes)}
-          <Redirect from="*" to="/dashboard" />
-        </Switch>
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </ThemeProvider>
     </CacheProvider>
   ) : (
@@ -158,10 +159,10 @@ export default function App() {
         </>
       )}
       {layout === "vr" && <Configurator />}
-      <Switch>
+      <Routes>
         {getRoutes(routes)}
-        <Redirect from="*" to="/dashboard" />
-      </Switch>
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
     </ThemeProvider>
   );
 }
