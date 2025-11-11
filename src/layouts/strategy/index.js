@@ -122,6 +122,55 @@ function Strategy() {
     }
   }, [summary?.totalLaps]);
 
+  // Build chart series and colours for the tyre degradation graph
+  const baseSeries = [
+    {
+      name: "Lap Time (s)",
+      data: (Array.isArray(tyreDeg?.times) ? tyreDeg.times : []).map((t, i) => ({ x: i + 1, y: t })),
+    },
+  ];
+  const simulatedSeries =
+    Array.isArray(simSeries) && simSeries.length
+      ? [
+          {
+            name: "Simulated (s)",
+            data: simSeries.map((t, i) => ({ x: i + 1, y: t })),
+          },
+        ]
+      : [];
+  const sectionSeries =
+    showSections && sectionsData?.timesBySection
+      ? Object.keys(sectionsData.timesBySection).map((key) => ({
+          name: key,
+          data: sectionsData.timesBySection[key].map((t, i) => ({ x: i + 1, y: t })),
+        }))
+      : [];
+  const chartSeries = [...baseSeries, ...simulatedSeries, ...sectionSeries];
+
+  // Colour palette: first for baseline, second for simulated, then rotating colours for sections
+  const sectionPalette = [
+    "#34D399",
+    "#F59E0B",
+    "#F43F5E",
+    "#10B981",
+    "#3B82F6",
+    "#F472B6",
+    "#22D3EE",
+    "#F97316",
+    "#EAB308",
+    "#60A5FA",
+    "#FB7185",
+    "#84CC16",
+    "#A855F7",
+    "#06B6D4",
+    "#EF4444",
+  ];
+  const chartColors = [
+    "#2CD9FF", // baseline
+    ...(simulatedSeries.length ? ["#A78BFA"] : []), // simulated
+    ...sectionPalette.slice(0, sectionSeries.length), // sections
+  ];
+
   return (
     <DashboardLayout>
       <DashboardNavbar />
@@ -514,31 +563,17 @@ function Strategy() {
                 
                 <VuiBox sx={{ height: "320px" }}>
                   <LineChart
-                    lineChartData={[
-                      {
-                        name: "Lap Time (s)",
-                        data: (Array.isArray(tyreDeg?.times) ? tyreDeg.times : []).map((t, i) => ({ x: i + 1, y: t })),
-                      },
-                      ...(Array.isArray(simSeries) && simSeries.length
-                        ? [
-                            {
-                              name: "Simulated (s)",
-                              data: simSeries.map((t, i) => ({ x: i + 1, y: t })),
-                            },
-                          ]
-                        : []),
-                      ...(showSections && sectionsData?.timesBySection
-                        ? Object.keys(sectionsData.timesBySection).map((key) => ({
-                            name: key,
-                            data: sectionsData.timesBySection[key].map((t, i) => ({ x: i + 1, y: t })),
-                          }))
-                        : []),
-                    ]}
+                    lineChartData={chartSeries}
                     lineChartOptions={{
                       chart: { toolbar: { show: false } },
                       tooltip: { theme: "dark" },
                       dataLabels: { enabled: false },
                       stroke: { curve: "smooth" },
+                      legend: {
+                        show: true,
+                        position: "bottom",
+                        labels: { colors: "#ffffff" },
+                      },
                       xaxis: {
                         type: "numeric",
                         title: { text: "Lap" },
@@ -566,7 +601,7 @@ function Strategy() {
                             : null,
                         ].filter(Boolean),
                       },
-                      colors: ["#2CD9FF"],
+                      colors: chartColors,
                       fill: { type: "gradient", gradient: { shade: "dark", opacityFrom: 0.8, opacityTo: 0, stops: [] } },
                     }}
                   />
@@ -644,9 +679,20 @@ function Strategy() {
               <Grid container spacing={3}>
                 {topThreeList.map((d) => (
                   <Grid item xs={12} md={4} key={d.pos}>
-                    <VuiBox p={2} sx={{ background: "#1B1C3A", borderRadius: "12px" }}>
-                      <VuiTypography color="text" variant="button" fontWeight="bold">P{d.pos} — {d.name}</VuiTypography>
-                      <VuiTypography color="text" variant="caption">Gap {d.gap}</VuiTypography>
+                    <VuiBox
+                      p={2}
+                      display="flex"
+                      flexDirection="column"
+                      alignItems="center"
+                      justifyContent="center"
+                      sx={{ background: "#1B1C3A", borderRadius: "12px", textAlign: "center" }}
+                    >
+                      <VuiTypography color="white" variant="button" fontWeight="bold" component="div">
+                        P{d.pos} — {d.name}
+                      </VuiTypography>
+                      <VuiTypography color="text" variant="caption" component="div">
+                        Gap {d.gap}
+                      </VuiTypography>
                     </VuiBox>
                   </Grid>
                 ))}

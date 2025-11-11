@@ -408,6 +408,7 @@ function Dashboard() {
                     borderRadius: "10px",
                     mt: 1,
                     maxHeight: "420px",
+                    overflow: "hidden",
                     boxShadow: "0 7px 23px rgba(0, 0, 0, 0.31)",
                     "& .MuiList-root": {
                       padding: "8px",
