@@ -210,7 +210,9 @@ function toFloat(val) {
   return n;
 }
 
-async function extractLapTimes(filePath) {
+// Extract lap times from a "lap_time" CSV. Optionally restrict to a specific car number.
+// Prefer using extractLapTimesForCar() which derives times from lap end timestamps without heuristics.
+async function extractLapTimes(filePath, carNumber = null) {
   try {
     const { headers, rows } = await readCsvDicts(filePath);
     // Known lap time column names from various sources
@@ -225,26 +227,17 @@ async function extractLapTimes(filePath) {
 
     // If we have an explicit lap time column (including "value"), build times by lap
     if (ltKey) {
-      // If multiple vehicles exist, pick the vehicle with the most valid records
-      let chosenVehicle = null;
-      if (vehKey) {
-        const countByVeh = new Map();
-        for (const row of rows) {
-          const veh = row[vehKey];
-          const raw = toFloat(row[ltKey]);
-          if (veh == null || raw == null) continue;
-          if (!countByVeh.has(veh)) countByVeh.set(veh, 0);
-          // Prefer sensible lap times: > 1s (or > 100 ms before conversion), non-zero
-          if (raw > 0) countByVeh.set(veh, countByVeh.get(veh) + 1);
-        }
-        if (countByVeh.size) {
-          chosenVehicle = Array.from(countByVeh.entries()).sort((a, b) => b[1] - a[1])[0][0];
-        }
-      }
+      // Restrict rows to selected car if possible
+      const endsWithCar = (veh, car) => {
+        if (!veh || !car) return false;
+        const s = String(veh);
+        const num = String(car).trim();
+        return s.endsWith(`-${num}`) || s === num;
+      };
 
       const map = new Map();
       for (const row of rows) {
-        if (vehKey && chosenVehicle && row[vehKey] !== chosenVehicle) continue;
+        if (carNumber != null && vehKey && !endsWithCar(row[vehKey], carNumber)) continue;
         const lapNum = lapKey ? toFloat(row[lapKey]) : null;
         let t = toFloat(row[ltKey]);
         if (t === null) continue;
@@ -252,14 +245,24 @@ async function extractLapTimes(filePath) {
         if (ltKey.endsWith("_ms") || t > 1000) t = t / 1000.0;
         if (t <= 0) continue;
         if (lapNum === null) map.set(map.size + 1, t);
-        else if (!map.has(lapNum)) map.set(lapNum, t);
         else {
-          // On duplicates for the same lap, keep the smaller (more representative) positive time
-          const prev = map.get(lapNum);
-          if (prev === null || (t > 0 && t < prev)) map.set(lapNum, t);
+          // Accumulate all candidates for the lap; resolve later without heuristics
+          if (!map.has(lapNum)) map.set(lapNum, []);
+          map.get(lapNum).push(t);
         }
       }
-      const out = Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([, t]) => t);
+      // Resolve duplicates using the median to avoid outliers like 0 or 0.044s lines
+      const out = Array.from(map.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, arr]) => {
+          const values = Array.isArray(arr) ? arr : [arr];
+          const cleaned = values.filter((x) => x > 1 && x < 600);
+          if (!cleaned.length) return null;
+          cleaned.sort((a, b) => a - b);
+          const mid = Math.floor(cleaned.length - 1) / 2;
+          return cleaned[Math.round(mid)];
+        })
+        .filter((t) => t != null);
       if (out.length) return out;
     }
 
@@ -298,6 +301,107 @@ async function extractLapTimes(filePath) {
     }
   } catch {}
   return [];
+}
+
+// Find a lap_end_time CSV under a dataset folder
+async function findLapEndCsv(folderRel) {
+  const base = datasetsBase();
+  const folder = path.join(base, folderRel);
+  let found = null;
+  async function walk(dir) {
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    for (const ent of entries) {
+      if (ent.name === "__MACOSX" || ent.name.startsWith(".")) continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        await walk(full);
+      } else if (
+        ent.isFile() &&
+        ent.name.toLowerCase().endsWith(".csv") &&
+        /(lap[_-]?end[_-]?time)/i.test(ent.name)
+      ) {
+        found = full;
+        return;
+      }
+    }
+  }
+  try {
+    await walk(folder);
+  } catch {}
+  return found;
+}
+
+// Find analysis-with-sections CSV
+async function findAnalysisSectionsCsv(folderRel) {
+  const base = datasetsBase();
+  const folder = path.join(base, folderRel);
+  let found = null;
+  async function walk(dir) {
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    for (const ent of entries) {
+      if (ent.name === "__MACOSX" || ent.name.startsWith(".")) continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        await walk(full);
+      } else if (
+        ent.isFile() &&
+        ent.name.toLowerCase().endsWith(".csv") &&
+        /(analysis.*sections|analysisendurance.*sections)/i.test(ent.name.toLowerCase())
+      ) {
+        found = full;
+        return;
+      }
+    }
+  }
+  try {
+    await walk(folder);
+  } catch {}
+  return found;
+}
+
+// Extract lap times strictly from lap end timestamps for a specific car number.
+// This avoids any heuristics: sort the end times by lap and take successive differences.
+async function extractLapTimesForCar(folderRel, carNumber) {
+  if (!carNumber) return [];
+  try {
+    const lapEndCsv = await findLapEndCsv(folderRel);
+    if (!lapEndCsv) return [];
+    const { headers, rows } = await readCsvDicts(lapEndCsv, 100000);
+    const vehKey = ["vehicle_id", "VehicleId", "vehicleid"].find((k) => headers.includes(k)) || null;
+    const lapKey = ["lap", "Lap", "lap_number", "LapNumber"].find((k) => headers.includes(k)) || null;
+    const valKey = ["value", "Value"].find((k) => headers.includes(k)) || null;
+    if (!vehKey || !lapKey || !valKey) return [];
+    const endsWithCar = (veh, car) => {
+      if (!veh || !car) return false;
+      const s = String(veh);
+      const num = String(car).trim();
+      return s.endsWith(`-${num}`) || s === num;
+    };
+    // Collect end timestamps per lap for the selected car
+    const byLap = new Map();
+    for (const row of rows) {
+      const veh = row[vehKey];
+      if (!endsWithCar(veh, carNumber)) continue;
+      const lap = toFloat(row[lapKey]);
+      if (lap == null || lap <= 0 || lap > 10000) continue;
+      const tsStr = String(row[valKey]).trim();
+      const ts = Date.parse(tsStr);
+      if (Number.isNaN(ts)) continue;
+      // keep the latest timestamp for the lap
+      if (!byLap.has(lap) || ts > byLap.get(lap)) byLap.set(lap, ts);
+    }
+    const laps = Array.from(byLap.keys()).sort((a, b) => a - b);
+    const out = [];
+    for (let i = 1; i < laps.length; i++) {
+      const prev = byLap.get(laps[i - 1]);
+      const cur = byLap.get(laps[i]);
+      const dt = (cur - prev) / 1000.0;
+      if (dt > 0 && dt < 600) out.push(Number(dt.toFixed(3)));
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 // Extract a simple weather summary from a ; separated weather CSV if present
@@ -346,19 +450,28 @@ async function findWeatherCsv(folderRel) {
   return found;
 }
 
-async function extractSections(filePath) {
+async function extractSections(filePath, carNumber = null) {
   try {
     const { headers, rows } = await readCsvDicts(filePath);
-    const sNames = ["S1.a", "S1.b", "S2.a", "S2.b", "S3.a", "S3.b"];
-    const imNames = ["IM1a", "IM1", "IM2a", "IM2", "IM3a", "FL"];
-    const lapKeys = ["lap", "Lap", "lap_number", "LapNumber"];
+    // Try modern columns first (AnalysisEnduranceWithSections)
+    const secondsNames = ["S1_SECONDS", "S2_SECONDS", "S3_SECONDS"];
+    const numberKey = ["NUMBER", "Car", "car", "NUMBER_"].find((k) => headers.includes(k)) || null;
+    const lapKeys = ["LAP_NUMBER", "lap", "Lap", "lap_number", "LapNumber"];
     let active = null;
-    if (sNames.every((n) => headers.includes(n))) active = sNames;
-    else if (imNames.every((n) => headers.includes(n))) active = imNames;
+    if (secondsNames.every((n) => headers.includes(n))) active = secondsNames;
+    else {
+      const sNames = ["S1.a", "S1.b", "S2.a", "S2.b", "S3.a", "S3.b"];
+      const imNames = ["IM1a_time", "IM1_time", "IM2a_time", "IM2_time", "IM3a_time", "FL_time"];
+      if (sNames.every((n) => headers.includes(n))) active = sNames;
+      else if (imNames.every((n) => headers.includes(n))) active = imNames;
+    }
     if (!active) return null;
     const lapKey = lapKeys.find((k) => headers.includes(k)) || null;
     const perLap = new Map();
     for (const row of rows) {
+      if (carNumber != null && numberKey && String(row[numberKey]).trim() !== String(carNumber).trim()) {
+        continue;
+      }
       let lap = lapKey ? toFloat(row[lapKey]) : null;
       if (lap === null) lap = perLap.size + 1;
       if (!perLap.has(lap)) perLap.set(lap, Object.fromEntries(active.map((n) => [n, 0])));
@@ -383,7 +496,7 @@ async function extractSections(filePath) {
   }
 }
 
-async function telemetryFromCsv(filePath, limit = 500) {
+async function telemetryFromCsv(filePath, limit = 500, carNumber = null) {
   const fields = {
     speed: ["Speed", "speed", "mph", "kmh", "km/h"],
     gear: ["Gear", "gear"],
@@ -397,6 +510,13 @@ async function telemetryFromCsv(filePath, limit = 500) {
   };
   try {
     const { headers, rows } = await readCsvDicts(filePath, limit);
+    const vehKey = ["vehicle_id", "VehicleId", "vehicleid", "Vehicle", "car", "Car"].find((k) => headers.includes(k)) || null;
+    const endsWithCar = (veh, car) => {
+      if (!veh || !car) return false;
+      const s = String(veh);
+      const num = String(car).trim();
+      return s.endsWith(`-${num}`) || s === num;
+    };
     const picks = {};
     for (const key of Object.keys(fields)) {
       picks[key] = fields[key].find((k) => headers.includes(k)) || null;
@@ -412,6 +532,7 @@ async function telemetryFromCsv(filePath, limit = 500) {
       steering: [],
     };
     for (const row of rows) {
+      if (carNumber != null && vehKey && !endsWithCar(row[vehKey], carNumber)) continue;
       for (const k of Object.keys(data)) {
         const col = picks[k];
         if (!col) {
@@ -532,7 +653,10 @@ module.exports = {
   listDatasets,
   firstDatasetFolder,
   findCandidateCsv,
+  findLapEndCsv,
+  findAnalysisSectionsCsv,
   extractLapTimes,
+  extractLapTimesForCar,
   extractSections,
   telemetryFromCsv,
   computePitWindow,

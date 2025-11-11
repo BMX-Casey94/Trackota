@@ -18,16 +18,16 @@ import ProfileInfoCard from "examples/Cards/InfoCards/ProfileInfoCard";
 import CarInformations from "layouts/profile/components/CarInformations";
 import LineChart from "examples/Charts/LineCharts/LineChart";
 import BarChart from "examples/Charts/BarCharts/BarChart";
-import { StrategyApi, MockStrategyApi } from "services/api";
+import { StrategyApi } from "services/api";
 
 function Overview() {
-  const useMocks = process.env.REACT_APP_USE_MOCKS === "true";
-  const api = useMocks ? MockStrategyApi : StrategyApi;
+  const api = StrategyApi;
   const [summary, setSummary] = useState(null);
   const [tyreDeg, setTyreDeg] = useState(null);
   const [sections, setSections] = useState(null);
   const [telemetry, setTelemetry] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -80,6 +80,13 @@ function Overview() {
   const tyreText = summary?.tyre?.compound || "—";
   const fuelText = summary?.fuelPct != null ? `${summary.fuelPct}%` : "—";
 
+  const profileMeta = [
+    { label: "Name", value: "Akio Toyoda" },
+    { label: "Affiliation", value: "TOYOTA GAZOO Racing" },
+    { label: "Car", value: "GR010 HYBRID" },
+    { label: "Country", value: "Japan" },
+  ];
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -94,80 +101,131 @@ function Overview() {
 
   return (
     <DashboardLayout>
-      <Header />
-      <VuiBox mt={5} mb={3}>
-        <Card>
-          <VuiBox p={3}>
-            <VuiTypography color="white" variant="lg" fontWeight="bold" mb="6px">
-              Toyota Gazoo Racing Platform — Profile
-            </VuiTypography>
-            <VuiTypography color="text" variant="button" fontWeight="regular" mb="12px">
-              This profile represents the Toyota GR racing persona inside Trackota. It focuses on identity and team context rather than race engineering tools.
-            </VuiTypography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={3}>
-                <VuiTypography color="text" variant="button">Name</VuiTypography>
-                <VuiTypography color="white" variant="lg" fontWeight="bold">Akio Toyoda</VuiTypography>
+      <Header tabValue={activeTab} onTabChange={setActiveTab} />
+      <VuiBox position="relative">
+        <VuiBox mt={5} mb={3}>
+          <Card>
+            <VuiBox p={3}>
+              <VuiTypography color="white" variant="lg" fontWeight="bold" mb="8px" component="div" textAlign="center">
+                Toyota Gazoo Racing Platform
+              </VuiTypography>
+              <VuiBox mb="40px" textAlign="center">
+                <VuiTypography color="text" variant="button" fontWeight="regular" component="div">
+                  This profile represents the Toyota GR racing persona inside Trackota.
+                </VuiTypography>
+                <VuiTypography color="text" variant="button" fontWeight="regular" component="div">
+                  It focuses on identity and team context rather than race engineering tools. This page uses mock data.
+                </VuiTypography>
+              </VuiBox>
+              <Grid container spacing={3}>
+                {profileMeta.map((item, idx) => (
+                  <Grid
+                    item
+                    xs={12}
+                    md={3}
+                    key={item.label}
+                    sx={({ breakpoints }) => ({
+                      textAlign: "center",
+                      [breakpoints.up("md")]: {
+                        borderLeft: idx === 0 ? "none" : "1px solid rgba(255,255,255,0.12)",
+                        paddingLeft: idx === 0 ? 0 : "16px",
+                      },
+                      [breakpoints.down("md")]: {
+                        borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,0.08)",
+                        paddingTop: idx === 0 ? 0 : "12px",
+                      },
+                    })}
+                  >
+                    <VuiTypography color="text" variant="button" fontWeight="medium" textTransform="uppercase" mb="4px" component="div">
+                      {item.label}
+                    </VuiTypography>
+                    <VuiTypography color="white" variant="lg" fontWeight="bold" component="div">
+                      {item.value}
+                    </VuiTypography>
+                  </Grid>
+                ))}
               </Grid>
-              <Grid item xs={12} md={3}>
-                <VuiTypography color="text" variant="button">Affiliation</VuiTypography>
-                <VuiTypography color="white" variant="lg" fontWeight="bold">TOYOTA GAZOO Racing</VuiTypography>
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <VuiTypography color="text" variant="button">Car</VuiTypography>
-                <VuiTypography color="white" variant="lg" fontWeight="bold">GR86</VuiTypography>
-              </Grid>
-              <Grid item xs={12} md={3}>
-                <VuiTypography color="text" variant="button">Country</VuiTypography>
-                <VuiTypography color="white" variant="lg" fontWeight="bold">Japan</VuiTypography>
-              </Grid>
+            </VuiBox>
+          </Card>
+        </VuiBox>
+        <VuiBox mb={3}>
+          <Grid
+            container
+            spacing={3}
+            sx={({ breakpoints }) => ({
+              [breakpoints.only("xl")]: {
+                gridTemplateColumns: "repeat(2, 1fr)",
+              },
+            })}
+          >
+            {/* Restore original left column welcome */}
+            <Grid item xs={12} xl={4} xxl={3}>
+              <Welcome />
             </Grid>
-          </VuiBox>
-        </Card>
-      </VuiBox>
-      <VuiBox mb={3}>
-        <Grid
-          container
-          spacing={3}
-          sx={({ breakpoints }) => ({
-            [breakpoints.only("xl")]: {
-              gridTemplateColumns: "repeat(2, 1fr)",
-            },
-          })}
-        >
-          {/* Restore original left column welcome */}
-          <Grid item xs={12} xl={4} xxl={3}>
-            <Welcome />
+            {/* Middle – Car overview (original widget retained) */}
+            <Grid item xs={12} xl={5} xxl={6}>
+              <CarInformations />
+            </Grid>
+            {/* Right – Profile details card */}
+            <Grid item xs={12} xl={3} xxl={3}>
+              <ProfileInfoCard
+                title="profile information"
+                description="Akio Toyoda — Toyota Gazoo Racing leadership profile."
+                info={{
+                  fullName: "Akio Toyoda",
+                  mobile: "(+81) 123 456 789",
+                  email: "akio@toyota.co.jp",
+                  location: "Japan",
+                }}
+                social={[]}
+              />
+            </Grid>
           </Grid>
-          {/* Middle – Car overview (original widget retained) */}
-          <Grid item xs={12} xl={5} xxl={6}>
-            <CarInformations />
+        </VuiBox>
+        {/* Keep PlatformSettings; remove analytics lists from Profile */}
+        <Grid container spacing={3} mb="30px">
+          <Grid item xs={12} xl={3} height="100%">
+            <PlatformSettings />
           </Grid>
-          {/* Right – Profile details card */}
-          <Grid item xs={12} xl={3} xxl={3}>
-            <ProfileInfoCard
-              title="profile information"
-              description="Akio Toyoda — Toyota Gazoo Racing leadership profile."
-              info={{
-                fullName: "Akio Toyoda",
-                mobile: "(+81) 123 456 789",
-                email: "akio@toyota.co.jp",
-                location: "Japan",
-              }}
-              social={[]}
-            />
-          </Grid>
+          <Grid item xs={12} xl={9}></Grid>
         </Grid>
-      </VuiBox>
-      {/* Keep PlatformSettings; remove analytics lists from Profile */}
-      <Grid container spacing={3} mb="30px">
-        <Grid item xs={12} xl={3} height="100%">
-          <PlatformSettings />
-        </Grid>
-        <Grid item xs={12} xl={9}></Grid>
-      </Grid>
-      {/* Telemetry/Laps/Sections analytics removed from Profile (now on Dashboard/Strategy) */}
+        {/* Telemetry/Laps/Sections analytics removed from Profile (now on Dashboard/Strategy) */}
 
+        {activeTab !== 0 && (
+          <VuiBox
+            sx={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 10,
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "center",
+              backdropFilter: "blur(4px)",
+              background: "rgba(0,0,0,0.55)",
+              p: 3,
+              pt: "300px",
+            }}
+          >
+            <Card
+              sx={{
+                p: 3,
+                textAlign: "center",
+                maxWidth: 720,
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.18)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
+              }}
+            >
+              <VuiTypography variant="lg" color="white" fontWeight="bold" mb="8px">
+                Coming soon
+              </VuiTypography>
+              <VuiTypography variant="button" color="text" fontWeight="regular">
+                Unfortunately, I ran out of time before I could get this page constructed.
+              </VuiTypography>
+            </Card>
+          </VuiBox>
+        )}
+      </VuiBox>
       <Footer />
     </DashboardLayout>
   );

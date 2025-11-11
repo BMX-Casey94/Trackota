@@ -2,8 +2,7 @@ const path = require("path");
 const {
   datasetsBase,
   firstDatasetFolder,
-  extractLapTimes,
-  findCandidateCsv,
+  extractLapTimesForCar,
   computePitWindow,
   findWeatherCsv,
   extractWeatherSummary,
@@ -19,10 +18,7 @@ module.exports = async (req, res) => {
     const carNumber = req.query.car ? String(req.query.car).trim() : null;
     let times = [];
     if (folder) {
-      const candidate = await findCandidateCsv(folder);
-      if (candidate) {
-        times = await extractLapTimes(candidate);
-      }
+      if (carNumber) times = await extractLapTimesForCar(folder, carNumber);
     }
     const total = times.length;
 

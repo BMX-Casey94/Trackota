@@ -1,14 +1,12 @@
-const { firstDatasetFolder, findCandidateCsv, extractLapTimes } = require("../_utils");
+const { firstDatasetFolder, extractLapTimesForCar } = require("../_utils");
 
 module.exports = async (req, res) => {
   try {
     const folder = req.query.folder || (await firstDatasetFolder());
+    const car = req.query.car ? String(req.query.car).trim() : null;
     let times = [];
-    if (folder) {
-      const candidate = await findCandidateCsv(folder);
-      if (candidate) {
-        times = await extractLapTimes(candidate);
-      }
+    if (folder && car) {
+      times = await extractLapTimesForCar(folder, car);
     }
     if (!times.length) return res.status(200).json([]);
     const lapTimes = times.map((t, i) => [i + 1, t]);

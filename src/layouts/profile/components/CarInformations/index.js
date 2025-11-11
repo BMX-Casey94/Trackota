@@ -26,7 +26,7 @@ const CarInformations = () => {
 					Car Informations
 				</VuiTypography>
 				<VuiTypography variant='button' color='text' fontWeight='regular' mb='30px'>
-					Hello, Akio Toyoda! Your GR86 is ready.
+					Hello, Akio Toyoda! Your GR010 HYBRID is ready.
 				</VuiTypography>
 				<Stack
 					spacing='24px'
@@ -53,8 +53,17 @@ const CarInformations = () => {
 						})}
 						alignItems='center'>
 						<VuiBox sx={{ position: 'relative', display: 'inline-flex' }}>
-							<CircularProgress variant='determinate' value={60} size={170} color='info' />
-							<VuiBox display='flex' flexDirection='column' justifyContent='center' alignItems='center'>
+							<CircularProgress variant='determinate' value={68} size={170} color='info' />
+							<VuiBox
+								display='flex'
+								flexDirection='column'
+								justifyContent='center'
+								alignItems='center'
+								sx={{
+									position: 'absolute',
+									inset: 0,
+									pointerEvents: 'none'
+								}}>
 								<VuiBox component='img' src={GreenLightning} />
 								<VuiTypography color='white' variant='h2' mt='6px' fontWeight='bold' mb='4px'>
 									68%

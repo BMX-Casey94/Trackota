@@ -21,9 +21,10 @@ import { IoBuild } from "react-icons/io5";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import { useEffect, useState } from "react";
 
-function Header() {
+function Header({ tabValue: controlledTabValue, onTabChange }) {
   const [tabsOrientation, setTabsOrientation] = useState("horizontal");
-  const [tabValue, setTabValue] = useState(0);
+  const [internalTabValue, setInternalTabValue] = useState(0);
+  const currentTabValue = typeof controlledTabValue === "number" ? controlledTabValue : internalTabValue;
 
   useEffect(() => {
     // A function that sets the orientation state of the tabs.
@@ -45,7 +46,13 @@ function Header() {
     return () => window.removeEventListener("resize", handleTabsOrientation);
   }, [tabsOrientation]);
 
-  const handleSetTabValue = (event, newValue) => setTabValue(newValue);
+  const handleSetTabValue = (event, newValue) => {
+    if (typeof onTabChange === "function") {
+      onTabChange(newValue);
+    } else {
+      setInternalTabValue(newValue);
+    }
+  };
 
   return (
     <VuiBox position="relative">
@@ -121,7 +128,7 @@ function Header() {
             <AppBar position="static">
               <Tabs
                 orientation={tabsOrientation}
-                value={tabValue}
+                value={currentTabValue}
                 onChange={handleSetTabValue}
                 sx={{ background: "transparent", display: "flex", justifyContent: "flex-end" }}
               >

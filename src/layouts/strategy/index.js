@@ -20,11 +20,10 @@ import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import Footer from "examples/Footer";
 import { useEffect, useState } from "react";
-import { StrategyApi, MockStrategyApi } from "services/api";
+import { StrategyApi } from "services/api";
 
 function Strategy() {
-  const useMocks = process.env.REACT_APP_USE_MOCKS === "true";
-  const api = useMocks ? MockStrategyApi : StrategyApi;
+  const api = StrategyApi;
   const [summary, setSummary] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [topThree, setTopThree] = useState([]);

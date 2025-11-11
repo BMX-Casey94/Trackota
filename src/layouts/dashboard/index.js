@@ -35,14 +35,13 @@ import { FaShoppingCart } from "react-icons/fa";
 // Data
 import LineChart from "examples/Charts/LineCharts/LineChart";
 import BarChart from "examples/Charts/BarCharts/BarChart";
-import { StrategyApi, MockStrategyApi } from "services/api";
+import { StrategyApi } from "services/api";
 import CircularProgress from "@mui/material/CircularProgress";
 
 function Dashboard() {
   const { gradients } = colors;
   const { cardContent } = gradients;
-  const useMocks = process.env.REACT_APP_USE_MOCKS === "true";
-  const api = useMocks ? MockStrategyApi : StrategyApi;
+  const api = StrategyApi;
   const [summary, setSummary] = useState(null);
   const [tyreDeg, setTyreDeg] = useState(null);
   const [telemetry, setTelemetry] = useState(null);
@@ -139,13 +138,18 @@ function Dashboard() {
     (async () => {
       try {
         setLoading(true);
+        // Require both folder and car to be chosen before requesting car-dependent data
+        if (!selectedFolder) return;
+        if (carOptions.length > 0 && !selectedCar) return;
+        const baseParams = selectedFolder ? { folder: selectedFolder } : {};
+        const carParams = selectedCar ? { ...baseParams, car: selectedCar } : baseParams;
         const [s, deg, tel, sec, wtr, t3] = await Promise.all([
-          api.getSummary(selectedFolder ? { folder: selectedFolder, ...(selectedCar ? { car: selectedCar } : {}) } : {}),
-          api.getTyreDegChart(selectedFolder ? { folder: selectedFolder, ...(selectedCar ? { car: selectedCar } : {}) } : {}),
-          api.getTelemetry(selectedFolder ? { folder: selectedFolder, ...(selectedCar ? { car: selectedCar } : {}) } : {}),
-          api.getSections(selectedFolder ? { folder: selectedFolder, ...(selectedCar ? { car: selectedCar } : {}) } : {}),
-          api.getWeatherTrend(selectedFolder ? { folder: selectedFolder } : {}),
-          api.getTopThree(selectedFolder ? { folder: selectedFolder } : {}),
+          api.getSummary(carParams),
+          api.getTyreDegChart(carParams),
+          api.getTelemetry(carParams),
+          api.getSections(carParams),
+          api.getWeatherTrend(baseParams),
+          api.getTopThree(carParams),
         ]);
         if (!isMounted) return;
         setSummary(s);
@@ -159,22 +163,6 @@ function Dashboard() {
         if (total && isMounted) setSelectedLap(total);
       } catch (e) {
         console.error("Dashboard data fetch error:", e);
-        // Fallback to mock data if real API fails and mocks are not already enabled
-        if (!useMocks) {
-          try {
-            const [s, deg] = await Promise.all([
-              MockStrategyApi.getSummary(),
-              MockStrategyApi.getTyreDegChart(),
-            ]);
-            if (!isMounted) return;
-            setSummary(s);
-            setTyreDeg(deg);
-            setTelemetry(null);
-            setSectionsData(null);
-          } catch (mockErr) {
-            console.error("Failed to load mock dashboard data:", mockErr);
-          }
-        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -182,7 +170,7 @@ function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, [selectedFolder, selectedCar]); // re-fetch when dataset or car changes
+  }, [selectedFolder, selectedCar, carOptions.length]); // re-fetch when dataset or car changes
 
   const totalLaps = summary?.totalLaps || (Array.isArray(tyreDeg?.times) ? tyreDeg.times.length : null);
   const currentLap = selectedLap || totalLaps || null;
@@ -206,9 +194,12 @@ function Dashboard() {
 
   // Driver Consistency: higher is better; based on std dev over last 10 laps
   const stdDev = (() => {
-    if (!lastWindow.length) return null;
+    // Require at least 2 laps to compute a meaningful sample standard deviation
+    if (!lastWindow.length || lastWindow.length < 2) return null;
     const mean = avgLap;
-    const variance = lastWindow.reduce((acc, t) => acc + Math.pow(t - mean, 2), 0) / lastWindow.length;
+    // Sample variance (N - 1) to better estimate variability for small windows (last 10 laps)
+    const variance =
+      lastWindow.reduce((acc, t) => acc + Math.pow(t - mean, 2), 0) / (lastWindow.length - 1);
     return Math.sqrt(variance);
   })();
   const consistencyPct = (() => {
@@ -231,9 +222,15 @@ function Dashboard() {
     : [];
   // Friendlier labels for section names like "S1.a" -> "Section 1a"
   const prettySectionName = (name) => {
-    const m = /^S(\d+)\.([a-z])$/i.exec(String(name || ""));
+    const s = String(name || "");
+    let m = /^S(\d+)\.([a-z])$/i.exec(s);
     if (m) return `Section ${m[1]}${m[2].toLowerCase()}`;
-    return name || "";
+    m = /^S(\d+)_SECONDS$/i.exec(s);
+    if (m) return `Section ${m[1]}`;
+    m = /^(IM\d+a?)_time$/i.exec(s);
+    if (m) return m[1].toUpperCase();
+    if (/^FL_time$/i.test(s)) return "FL";
+    return s;
   };
   const sectionDisplayNames = sectionNames.map(prettySectionName);
   const sectionDelta = sections
@@ -366,26 +363,29 @@ function Dashboard() {
           </VuiBox>
         ) : null}
         {!!carOptions.length && (
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel id="car-select-label" sx={{ color: "#c8cfca" }} shrink>Car</InputLabel>
+          <FormControl size="small" sx={{ minWidth: 220 }}>
             <Select
-              labelId="car-select-label"
               id="car-select"
               value={selectedCar || ""}
-              label="Car"
               onChange={(e) => {
                 const value = e.target.value || null;
                 setSelectedCar(value);
                 try { localStorage.setItem(`trackota:selectedCar:${selectedFolder}`, value || ""); } catch {}
               }}
               sx={{
-                color: "white",
-                background: "#1B1C3A",
+                color: "#ffffff",
+                background: "#2CD9FF",
                 borderRadius: "10px",
-                ".MuiOutlinedInput-notchedOutline": { borderColor: "#56577A" },
-                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#8F91B5" },
-                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#2CD9FF" },
-                ".MuiSvgIcon-root, .MuiSelect-icon": { color: "#c8cfca" },
+                px: 1.5,
+                ".MuiOutlinedInput-notchedOutline": { border: "none" },
+                "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "none" },
+                ".MuiSvgIcon-root, .MuiSelect-icon": { color: "#ffffff" },
+              }}
+              displayEmpty
+              renderValue={(value) => {
+                const label = carOptions.find((o) => o.value === value)?.label || "—";
+                return `Car: ${label}`;
               }}
             >
               {carOptions.map((opt) => (
@@ -630,12 +630,24 @@ function Dashboard() {
                       { name: "Lap Time (s)", data: consistencySeries }
                     ]}
                     lineChartOptions={{
-                      chart: { toolbar: { show: false }, sparkline: { enabled: true } },
+                      chart: { toolbar: { show: false }, sparkline: { enabled: false } },
                       dataLabels: { enabled: false },
                       stroke: { curve: "smooth" },
-                      xaxis: { type: "numeric", categories: consistencySeries.map((p) => p.x) },
-                      yaxis: { labels: { style: { colors: "#c8cfca", fontSize: "10px" } } },
-                      grid: { strokeDashArray: 5, borderColor: "#56577A" },
+                      xaxis: {
+                        type: "numeric",
+                        categories: consistencySeries.map((p) => p.x),
+                        labels: { style: { colors: "#c8cfca", fontSize: "10px" } },
+                      },
+                      yaxis: {
+                        tickAmount: 3,
+                        decimalsInFloat: 0,
+                        labels: { style: { colors: "#c8cfca", fontSize: "10px" }, offsetX: 0 },
+                      },
+                      grid: {
+                        strokeDashArray: 5,
+                        borderColor: "#56577A",
+                        padding: { left: 28, right: 8, top: 8, bottom: 0 },
+                      },
                     }}
                   />
                 </VuiBox>

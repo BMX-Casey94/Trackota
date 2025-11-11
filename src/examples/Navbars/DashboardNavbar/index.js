@@ -43,8 +43,6 @@ import {
 } from "context";
 
 // Images
-import team2 from "assets/images/team-2.jpg";
-import logoSpotify from "assets/images/small-logos/logo-spotify.svg";
 
 function DashboardNavbar({ absolute, light, isMini }) {
   const [navbarType, setNavbarType] = useState();
@@ -98,25 +96,35 @@ function DashboardNavbar({ absolute, light, isMini }) {
       sx={{ mt: 2 }}
     >
       <NotificationItem
-        image={<img src={team2} alt="person" />}
-        title={["New message", "from Laur"]}
+        color="info"
+        image={
+          <Icon fontSize="small" sx={{ color: ({ palette: { white } }) => white.main }}>
+            cloud_upload
+          </Icon>
+        }
+        title={["New telemetry", "uploaded for GR010 – Sebring FP2"]}
         date="13 minutes ago"
         onClick={handleCloseMenu}
       />
       <NotificationItem
-        image={<img src={logoSpotify} alt="person" />}
-        title={["New album", "by Travis Scott"]}
+        color="warning"
+        image={
+          <Icon fontSize="small" sx={{ color: ({ palette: { white } }) => white.main }}>
+            timeline
+          </Icon>
+        }
+        title={["Tyre degradation", "rear-left wear spiking in stint 3"]}
         date="1 day"
         onClick={handleCloseMenu}
       />
       <NotificationItem
-        color="text"
+        color="success"
         image={
           <Icon fontSize="small" sx={{ color: ({ palette: { white } }) => white.main }}>
-            payment
+            local_gas_station
           </Icon>
         }
-        title={["", "Payment successfully completed"]}
+        title={["Fuel usage", "updated: 2.3 Miles/lap average"]}
         date="2 days"
         onClick={handleCloseMenu}
       />
