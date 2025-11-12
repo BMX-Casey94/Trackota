@@ -693,7 +693,7 @@ function Dashboard() {
                   </VuiBox>
                 </VuiBox>
                 <VuiTypography variant="button" color="text" fontWeight="regular">
-                  Last 10 laps variability (lower is better)
+                 Based on last 10 laps.
                 </VuiTypography>
                 <VuiBox sx={{ width: "100%", height: "120px", mt: 2 }}>
                   <LineChart
