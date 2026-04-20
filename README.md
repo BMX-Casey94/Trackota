@@ -1,6 +1,8 @@
 # Trackota – Race Strategy Dashboard
 
 A real-time analytics dashboard for Toyota GR Cup race engineers, showcasing live lap data, telemetry, and pit strategy recommendations.
+Auth/login preview: (https://trackota.help/authentication/sign-in)
+Dashboard: (https://trackota.help/dashboard)
 
 ## Features
 
@@ -173,6 +175,6 @@ See [LICENSE.md](LICENSE.md)
 
 ## Credits
 
-- Dashboard template: [Vision UI Dashboard React](https://www.creative-tim.com/product/vision-ui-dashboard-react)
+- Dashboard template: [Vision UI Dashboard React]
 - Race data: Toyota GR Cup (Sebring, Road America)
 
